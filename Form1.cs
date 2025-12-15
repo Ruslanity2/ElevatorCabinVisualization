@@ -39,6 +39,14 @@ namespace ElevatorCabinVisualization
         private CheckBox chkFrontWall;
         private CheckBox chkBackWall;
 
+        // ComboBox для каждого элемента
+        private ComboBox cmbCeiling;
+        private ComboBox cmbFloor;
+        private ComboBox cmbLeftWall;
+        private ComboBox cmbRightWall;
+        private ComboBox cmbFrontWall;
+        private ComboBox cmbBackWall;
+
         // Panel для контролов
         private Panel controlPanel;
 
@@ -53,17 +61,21 @@ namespace ElevatorCabinVisualization
         // Panel для параметров
         private Panel parametersPanel;
 
+        // Кнопка закрытия
+        private Button btnClose;
+
         public Form1()
         {
             InitializeComponent();
             this.Text = "Кабина лифта";
-            this.Size = new Size(1000, 700);
+            this.Size = new Size(970, 700);
             this.BackColor = Color.FromArgb(40, 50, 70);
             this.DoubleBuffered = true;
 
             InitializeCabinPoints();
             InitializeControls();
             InitializeParametersPanel();
+            InitializeCloseButton();
 
             this.Paint += Form1_Paint;
         }
@@ -74,10 +86,12 @@ namespace ElevatorCabinVisualization
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(984, 711);
+            this.ClientSize = new System.Drawing.Size(884, 711);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "Form1";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.ResumeLayout(false);
 
         }
@@ -86,8 +100,8 @@ namespace ElevatorCabinVisualization
         {
             // Панель для контролов
             controlPanel = new Panel();
-            controlPanel.Location = new Point(750, 20);
-            controlPanel.Size = new Size(210, 300);
+            controlPanel.Location = new Point(750, 50);
+            controlPanel.Size = new Size(200, 300);
             controlPanel.BackColor = Color.FromArgb(200, 50, 60, 80);
             controlPanel.BorderStyle = BorderStyle.FixedSingle;
 
@@ -104,50 +118,68 @@ namespace ElevatorCabinVisualization
             int spacing = 40;
 
             // Потолок
-            chkCeiling = CreateToggleCheckBox("Потолок", yPos, ceilingColor);
+            chkCeiling = CreateToggleCheckBox("", yPos, ceilingColor);
             chkCeiling.Checked = showCeiling;
-            chkCeiling.CheckedChanged += (s, e) => { showCeiling = chkCeiling.Checked; this.Invalidate(); };
+            chkCeiling.CheckedChanged += (s, e) => { showCeiling = chkCeiling.Checked; UpdateEyeIcon(chkCeiling); this.Invalidate(); };
             controlPanel.Controls.Add(chkCeiling);
+            UpdateEyeIcon(chkCeiling);
+            cmbCeiling = CreateComboBox(yPos, "Потолок");
+            controlPanel.Controls.Add(cmbCeiling);
             controlPanel.Controls.Add(CreateSettingsButton(yPos));
             yPos += spacing;
 
             // Пол
-            chkFloor = CreateToggleCheckBox("Пол", yPos, floorColor);
+            chkFloor = CreateToggleCheckBox("", yPos, floorColor);
             chkFloor.Checked = showFloor;
-            chkFloor.CheckedChanged += (s, e) => { showFloor = chkFloor.Checked; this.Invalidate(); };
+            chkFloor.CheckedChanged += (s, e) => { showFloor = chkFloor.Checked; UpdateEyeIcon(chkFloor); this.Invalidate(); };
             controlPanel.Controls.Add(chkFloor);
+            UpdateEyeIcon(chkFloor);
+            cmbFloor = CreateComboBox(yPos, "Пол");
+            controlPanel.Controls.Add(cmbFloor);
             controlPanel.Controls.Add(CreateSettingsButton(yPos));
             yPos += spacing;
 
             // Левая стена
-            chkLeftWall = CreateToggleCheckBox("Левая стена", yPos, leftWallColor);
+            chkLeftWall = CreateToggleCheckBox("", yPos, leftWallColor);
             chkLeftWall.Checked = showLeftWall;
-            chkLeftWall.CheckedChanged += (s, e) => { showLeftWall = chkLeftWall.Checked; this.Invalidate(); };
+            chkLeftWall.CheckedChanged += (s, e) => { showLeftWall = chkLeftWall.Checked; UpdateEyeIcon(chkLeftWall); this.Invalidate(); };
             controlPanel.Controls.Add(chkLeftWall);
+            UpdateEyeIcon(chkLeftWall);
+            cmbLeftWall = CreateComboBox(yPos, "Левая стена");
+            controlPanel.Controls.Add(cmbLeftWall);
             controlPanel.Controls.Add(CreateSettingsButton(yPos));
             yPos += spacing;
 
             // Правая стена
-            chkRightWall = CreateToggleCheckBox("Правая стена", yPos, rightWallColor);
+            chkRightWall = CreateToggleCheckBox("", yPos, rightWallColor);
             chkRightWall.Checked = showRightWall;
-            chkRightWall.CheckedChanged += (s, e) => { showRightWall = chkRightWall.Checked; this.Invalidate(); };
+            chkRightWall.CheckedChanged += (s, e) => { showRightWall = chkRightWall.Checked; UpdateEyeIcon(chkRightWall); this.Invalidate(); };
             controlPanel.Controls.Add(chkRightWall);
+            UpdateEyeIcon(chkRightWall);
+            cmbRightWall = CreateComboBox(yPos, "Правая стена");
+            controlPanel.Controls.Add(cmbRightWall);
             controlPanel.Controls.Add(CreateSettingsButton(yPos));
             yPos += spacing;
 
             // Передняя стена
-            chkFrontWall = CreateToggleCheckBox("Задняя стена", yPos, frontWallColor);
+            chkFrontWall = CreateToggleCheckBox("", yPos, frontWallColor);
             chkFrontWall.Checked = showFrontWall;
-            chkFrontWall.CheckedChanged += (s, e) => { showFrontWall = chkFrontWall.Checked; this.Invalidate(); };
+            chkFrontWall.CheckedChanged += (s, e) => { showFrontWall = chkFrontWall.Checked; UpdateEyeIcon(chkFrontWall); this.Invalidate(); };
             controlPanel.Controls.Add(chkFrontWall);
+            UpdateEyeIcon(chkFrontWall);
+            cmbFrontWall = CreateComboBox(yPos, "Задняя стена");
+            controlPanel.Controls.Add(cmbFrontWall);
             controlPanel.Controls.Add(CreateSettingsButton(yPos));
             yPos += spacing;
 
             // Задняя стена
-            chkBackWall = CreateToggleCheckBox("Передняя стена", yPos, backWallColor);
+            chkBackWall = CreateToggleCheckBox("", yPos, backWallColor);
             chkBackWall.Checked = showBackWall;
-            chkBackWall.CheckedChanged += (s, e) => { showBackWall = chkBackWall.Checked; this.Invalidate(); };
+            chkBackWall.CheckedChanged += (s, e) => { showBackWall = chkBackWall.Checked; UpdateEyeIcon(chkBackWall); this.Invalidate(); };
             controlPanel.Controls.Add(chkBackWall);
+            UpdateEyeIcon(chkBackWall);
+            cmbBackWall = CreateComboBox(yPos, "Передняя стена");
+            controlPanel.Controls.Add(cmbBackWall);
             controlPanel.Controls.Add(CreateSettingsButton(yPos));
 
             this.Controls.Add(controlPanel);
@@ -218,6 +250,25 @@ namespace ElevatorCabinVisualization
             this.Controls.Add(parametersPanel);
         }
 
+        private void InitializeCloseButton()
+        {
+            btnClose = new Button();
+            btnClose.Location = new Point(this.ClientSize.Width - 40, 10);
+            btnClose.Size = new Size(30, 30);
+            btnClose.FlatStyle = FlatStyle.Popup;
+            //btnClose.FlatAppearance.BorderColor = Color.White;
+            //btnClose.FlatAppearance.BorderSize = 2;
+            btnClose.BackColor = Color.FromArgb(180, 200, 50, 50);
+            btnClose.ForeColor = Color.White;
+            btnClose.Font = new Font("Arial", 14, FontStyle.Bold);
+            btnClose.Text = "Х";
+            btnClose.TextAlign = ContentAlignment.BottomCenter;
+            btnClose.Cursor = Cursors.Hand;
+            btnClose.Click += (s, e) => this.Close();
+
+            this.Controls.Add(btnClose);
+        }
+
         private Label CreateLabel(string text, int yPos)
         {
             Label lbl = new Label();
@@ -248,31 +299,61 @@ namespace ElevatorCabinVisualization
         {
             CheckBox chk = new CheckBox();
             chk.Text = text;
-            chk.Font = new Font("Arial", 9, FontStyle.Regular);
+            chk.Font = new Font("Segoe UI", 10, FontStyle.Regular);
             chk.ForeColor = Color.White;
             chk.Location = new Point(10, yPos);
-            chk.Size = new Size(150, 30);
+            chk.Size = new Size(24, 24);
             chk.Appearance = Appearance.Button;
             chk.FlatStyle = FlatStyle.Flat;
             chk.FlatAppearance.CheckedBackColor = Color.FromArgb(100, 200, 100);
             chk.FlatAppearance.BorderColor = Color.White;
+            chk.FlatAppearance.BorderSize = 1;
             chk.TextAlign = ContentAlignment.MiddleCenter;
 
             return chk;
         }
 
+        private void UpdateEyeIcon(CheckBox chk)
+        {
+            // Символы: 👁 - открытый глаз, 👁‍🗨 - зачеркнутый (используем простой Unicode)
+            // Альтернатива: 👁 и ⃠ или просто разные символы            
+            chk.Text = chk.Checked ? "👁" : " ";
+        }
+
+        private ComboBox CreateComboBox(int yPos, string labelText)
+        {
+            ComboBox cmb = new ComboBox();
+            cmb.Location = new Point(39, yPos);
+            cmb.Size = new Size(120, 35);
+            cmb.Font = new Font("Arial", 10, FontStyle.Regular);
+            cmb.BackColor = Color.FromArgb(70, 80, 100);
+            cmb.ForeColor = Color.White;
+            cmb.FlatStyle = FlatStyle.Flat;
+            cmb.DropDownStyle = ComboBoxStyle.DropDownList;
+
+            // Первый элемент - название элемента
+            cmb.Items.Add(labelText);
+            // Добавляем пункты в ComboBox (пока заглушки)
+            cmb.Items.Add("Опция 1");
+            cmb.Items.Add("Опция 2");
+            cmb.Items.Add("Опция 3");
+            cmb.SelectedIndex = 0;
+
+            return cmb;
+        }
+
         private Button CreateSettingsButton(int yPos)
         {
             Button btn = new Button();
-            btn.Location = new Point(165, yPos);
-            btn.Size = new Size(30, 30);
+            btn.Location = new Point(164, yPos);
+            btn.Size = new Size(24, 24);
             btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderColor = Color.White;
             btn.BackColor = Color.FromArgb(70, 80, 100);
             btn.ForeColor = Color.White;
-            btn.Font = new Font("Arial", 12, FontStyle.Bold);
-            btn.Text = "⚙";
-            btn.TextAlign = ContentAlignment.MiddleCenter;
+            btn.Font = new Font("Arial", 14, FontStyle.Regular);
+            btn.Text = "🔧";
+            btn.TextAlign = ContentAlignment.BottomCenter;
             btn.Cursor = Cursors.Hand;
 
             // Пока просто заглушка, функционал добавим позже
