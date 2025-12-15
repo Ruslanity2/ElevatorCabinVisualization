@@ -42,16 +42,28 @@ namespace ElevatorCabinVisualization
         // Panel для контролов
         private Panel controlPanel;
 
+        // NumericUpDown для параметров
+        private NumericUpDown numHeight;
+        private NumericUpDown numWidth;
+        private NumericUpDown numDepth;
+        private NumericUpDown numFramePosition;
+        private NumericUpDown numDoorHeight;
+        private NumericUpDown numDoorWidth;
+
+        // Panel для параметров
+        private Panel parametersPanel;
+
         public Form1()
         {
             InitializeComponent();
-            this.Text = "Кабина лифта - Управление видимостью частей";
+            this.Text = "Кабина лифта";
             this.Size = new Size(1000, 700);
             this.BackColor = Color.FromArgb(40, 50, 70);
             this.DoubleBuffered = true;
 
             InitializeCabinPoints();
             InitializeControls();
+            InitializeParametersPanel();
 
             this.Paint += Form1_Paint;
         }
@@ -59,9 +71,15 @@ namespace ElevatorCabinVisualization
         private void InitializeComponent()
         {
             this.SuspendLayout();
-            this.ClientSize = new Size(1000, 700);
+            // 
+            // Form1
+            // 
+            this.ClientSize = new System.Drawing.Size(984, 711);
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
             this.Name = "Form1";
             this.ResumeLayout(false);
+
         }
 
         private void InitializeControls()
@@ -69,7 +87,7 @@ namespace ElevatorCabinVisualization
             // Панель для контролов
             controlPanel = new Panel();
             controlPanel.Location = new Point(750, 20);
-            controlPanel.Size = new Size(250, 300);
+            controlPanel.Size = new Size(210, 300);
             controlPanel.BackColor = Color.FromArgb(200, 50, 60, 80);
             controlPanel.BorderStyle = BorderStyle.FixedSingle;
 
@@ -135,6 +153,97 @@ namespace ElevatorCabinVisualization
             this.Controls.Add(controlPanel);
         }
 
+        private void InitializeParametersPanel()
+        {
+            // Панель для параметров слева
+            parametersPanel = new Panel();
+            parametersPanel.Location = new Point(20, 20);
+            parametersPanel.Size = new Size(250, 350);
+            parametersPanel.BackColor = Color.FromArgb(200, 50, 60, 80);
+            parametersPanel.BorderStyle = BorderStyle.FixedSingle;
+
+            // Заголовок
+            Label lblTitle = new Label();
+            lblTitle.Text = "Параметры кабины";
+            lblTitle.Font = new Font("Arial", 10, FontStyle.Bold);
+            lblTitle.ForeColor = Color.White;
+            lblTitle.Location = new Point(10, 10);
+            lblTitle.Size = new Size(230, 20);
+            parametersPanel.Controls.Add(lblTitle);
+
+            int yPos = 45;
+            int spacing = 50;
+
+            // Высота
+            parametersPanel.Controls.Add(CreateLabel("Высота:", yPos));
+            numHeight = CreateNumericUpDown(yPos + 20, 250, 100, 500);
+            numHeight.ValueChanged += (s, e) => { InitializeCabinPoints(); this.Invalidate(); };
+            parametersPanel.Controls.Add(numHeight);
+            yPos += spacing;
+
+            // Ширина
+            parametersPanel.Controls.Add(CreateLabel("Ширина:", yPos));
+            numWidth = CreateNumericUpDown(yPos + 20, 200, 100, 400);
+            numWidth.ValueChanged += (s, e) => { InitializeCabinPoints(); this.Invalidate(); };
+            parametersPanel.Controls.Add(numWidth);
+            yPos += spacing;
+
+            // Глубина
+            parametersPanel.Controls.Add(CreateLabel("Глубина:", yPos));
+            numDepth = CreateNumericUpDown(yPos + 20, 200, 100, 400);
+            numDepth.ValueChanged += (s, e) => { InitializeCabinPoints(); this.Invalidate(); };
+            parametersPanel.Controls.Add(numDepth);
+            yPos += spacing;
+
+            // Положение каркаса
+            parametersPanel.Controls.Add(CreateLabel("Положение каркаса:", yPos));
+            numFramePosition = CreateNumericUpDown(yPos + 20, 0, -100, 100);
+            numFramePosition.ValueChanged += (s, e) => { InitializeCabinPoints(); this.Invalidate(); };
+            parametersPanel.Controls.Add(numFramePosition);
+            yPos += spacing;
+
+            // Высота проема
+            parametersPanel.Controls.Add(CreateLabel("Высота проема:", yPos));
+            numDoorHeight = CreateNumericUpDown(yPos + 20, 200, 50, 300);
+            numDoorHeight.ValueChanged += (s, e) => { this.Invalidate(); };
+            parametersPanel.Controls.Add(numDoorHeight);
+            yPos += spacing;
+
+            // Ширина проема
+            parametersPanel.Controls.Add(CreateLabel("Ширина проема:", yPos));
+            numDoorWidth = CreateNumericUpDown(yPos + 20, 100, 50, 200);
+            numDoorWidth.ValueChanged += (s, e) => { this.Invalidate(); };
+            parametersPanel.Controls.Add(numDoorWidth);
+
+            this.Controls.Add(parametersPanel);
+        }
+
+        private Label CreateLabel(string text, int yPos)
+        {
+            Label lbl = new Label();
+            lbl.Text = text;
+            lbl.Font = new Font("Arial", 9, FontStyle.Regular);
+            lbl.ForeColor = Color.White;
+            lbl.Location = new Point(10, yPos);
+            lbl.Size = new Size(230, 20);
+            return lbl;
+        }
+
+        private NumericUpDown CreateNumericUpDown(int yPos, decimal value, decimal min, decimal max)
+        {
+            NumericUpDown num = new NumericUpDown();
+            num.Location = new Point(10, yPos);
+            num.Size = new Size(230, 25);
+            num.Font = new Font("Arial", 10, FontStyle.Regular);
+            num.Minimum = min;
+            num.Maximum = max;
+            num.Value = value;
+            num.DecimalPlaces = 0;
+            num.BackColor = Color.FromArgb(70, 80, 100);
+            num.ForeColor = Color.White;
+            return num;
+        }
+
         private CheckBox CreateToggleCheckBox(string text, int yPos, Color indicatorColor)
         {
             CheckBox chk = new CheckBox();
@@ -178,24 +287,25 @@ namespace ElevatorCabinVisualization
         private void InitializeCabinPoints()
         {
             // Размеры кабины (в пикселях для визуализации)
-            double width = 200;  // 1300 mm (ширина - слева направо)
-            double depth = 200;  // 3100 mm (глубина - спереди назад)
-            double height = 250; // 2000 mm (высота)
+            double width = (double)(numWidth?.Value ?? 200);   // Ширина - слева направо
+            double depth = (double)(numDepth?.Value ?? 150);   // Глубина - спереди назад
+            double height = (double)(numHeight?.Value ?? 250); // Высота
 
-            // Центр кабины на форме
+            // Центр кабины на форме (сдвинут вправо для панели параметров)
             int centerX = 350;
             int centerY = 400;
 
             // Углы поворота
             double verticalRotation = 10.0 * Math.PI / 180.0;   // 10 градусов вокруг вертикальной оси
+            double horizontalTilt = 10.0 * Math.PI / 180.0;     // 10 градусов наклон по горизонтали
 
-            // Изометрические углы с поворотом вокруг вертикальной оси
+            // Изометрические углы с поворотом
             double baseAngle = Math.PI / 6; // 30 градусов (базовая изометрия)
 
-            // Угол для глубины (ось Y идет назад-влево)
+            // Угол для глубины (ось Y идет назад-влево) с наклоном
             double depthAngle = baseAngle + verticalRotation;
-            // Угол для ширины (ось X идет вправо-назад)
-            double widthAngle = -baseAngle + verticalRotation;
+            // Угол для ширины (ось X идет вправо-назад) с наклоном
+            double widthAngle = -baseAngle + verticalRotation + horizontalTilt;
 
             // Изометрические коэффициенты для осей
             double depthX = Math.Cos(depthAngle);
@@ -304,14 +414,15 @@ namespace ElevatorCabinVisualization
             }
 
             // Рисуем дверь поверх стены в изометрии
-            double doorWidthReal = 100;   // Ширина двери в единицах
-            double doorHeight = 200;     // Высота двери
+            double doorWidthReal = (double)(numDoorWidth?.Value ?? 100);   // Ширина двери в единицах
+            double doorHeight = (double)(numDoorHeight?.Value ?? 200);     // Высота двери
             double doorMargin = 50;      // Отступ от левого края
 
             // Используем те же углы, что и для основной кабины
             double baseAngle = Math.PI / 6; // 30 градусов
             double verticalRotation = 10.0 * Math.PI / 180.0;
-            double widthAngle = -baseAngle + verticalRotation;
+            double horizontalTilt = 10.0 * Math.PI / 180.0;
+            double widthAngle = -baseAngle + verticalRotation + horizontalTilt;
 
             // Изометрические коэффициенты для ширины двери
             double widthX = Math.Cos(widthAngle);
