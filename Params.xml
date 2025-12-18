@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Params>
+  <Parameters>
+    <Parameter name="Высота" id="height" min="2100" max="2500" inc="100" default="2100" />
+    <Parameter name="Ширина" id="width" min="800" max="1600" inc="100" default="1100" />
+    <Parameter name="Глубина" id="depth" min="800" max="1600" inc="100" default="1100" />
+    <Parameter name="Положение каркаса" id="frame_position" min="200" max="1000" inc="50" default="200" />
+    <Parameter name="Высота проема" id="door_height" min="2000" max="2200" inc="100" default="2000" />
+    <Parameter name="Ширина проема" id="door_width" min="600" max="1200" inc="100" default="800" />
+    <Parameter name="Заплечик" id="door_margin" min="50" max="400" inc="50" default="150" />
+    <Parameter name="какой то" id="custom" min="50" max="400" inc="50" default="150" />
+  </Parameters>
+</Params>
