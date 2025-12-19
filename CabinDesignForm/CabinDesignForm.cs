@@ -14,25 +14,31 @@ namespace CabinDesignTool
         private Options options;
         private Dictionary<string, NumericUpDown> dimensionControls = new Dictionary<string, NumericUpDown>();
         private Dictionary<string, ComboBox> optionControls = new Dictionary<string, ComboBox>();
+        private Dictionary<string, TextBox> markControls = new Dictionary<string, TextBox>();
         private string pathXml;
         private string pathImage;
         private string groupName;
         private string pathModel;
         private Dictionary<string, decimal> mainFormValues;
+        private Dictionary<string, string> mainFormMarkValues;
 
-        public CabinDesignForm() : this(null, null, null, null, null)
+        public CabinDesignForm() : this(null, null, null, null, null, null)
         {
         }
 
-        public CabinDesignForm(string pathXml, string pathImage) : this(pathXml, pathImage, null, null, null)
+        public CabinDesignForm(string pathXml, string pathImage) : this(pathXml, pathImage, null, null, null, null)
         {
         }
 
-        public CabinDesignForm(string pathXml, string pathImage, string groupName, string pathModel) : this(pathXml, pathImage, groupName, pathModel, null)
+        public CabinDesignForm(string pathXml, string pathImage, string groupName, string pathModel) : this(pathXml, pathImage, groupName, pathModel, null, null)
         {
         }
 
-        public CabinDesignForm(string pathXml, string pathImage, string groupName, string pathModel, Dictionary<string, decimal> mainFormValues)
+        public CabinDesignForm(string pathXml, string pathImage, string groupName, string pathModel, Dictionary<string, decimal> mainFormValues) : this(pathXml, pathImage, groupName, pathModel, mainFormValues, null)
+        {
+        }
+
+        public CabinDesignForm(string pathXml, string pathImage, string groupName, string pathModel, Dictionary<string, decimal> mainFormValues, Dictionary<string, string> mainFormMarkValues)
         {
             InitializeComponent();
             this.pathXml = pathXml;
@@ -40,7 +46,9 @@ namespace CabinDesignTool
             this.groupName = groupName;
             this.pathModel = pathModel;
             this.mainFormValues = mainFormValues;
+            this.mainFormMarkValues = mainFormMarkValues;
             LoadOptions();
+            CreateDynamicMarkControls();
             CreateDynamicControls();
             CreateDynamicOptionControls();
             InitializeValues();
@@ -94,6 +102,83 @@ namespace CabinDesignTool
 
             // Не найдено
             return null;
+        }
+
+        private string GetMarkValueFromMainForm(Mark mark)
+        {
+            if (mainFormMarkValues == null)
+                return null;
+
+            // Пытаемся найти значение по имени mark
+            if (mainFormMarkValues.ContainsKey(mark.Name))
+            {
+                return mainFormMarkValues[mark.Name];
+            }
+
+            // Пытаемся найти значение по ID mark
+            if (!string.IsNullOrEmpty(mark.Id) && mainFormMarkValues.ContainsKey(mark.Id))
+            {
+                return mainFormMarkValues[mark.Id];
+            }
+
+            // Не найдено
+            return null;
+        }
+
+        private void CreateDynamicMarkControls()
+        {
+            // Очищаем существующие контролы в GroupBox "Маски"
+            groupBoxMasks.Controls.Clear();
+
+            if (options == null || options.Marks == null || options.Marks.Count == 0)
+            {
+                return;
+            }
+
+            int yPosition = 25;
+            int labelX = 10;
+            int textBoxX = 140;
+            int rowHeight = 30;
+
+            foreach (var mark in options.Marks)
+            {
+                // Создаем Label
+                Label label = new Label
+                {
+                    Text = mark.Name,
+                    Location = new Point(labelX, yPosition),
+                    AutoSize = true
+                };
+
+                // Создаем TextBox
+                TextBox textBox = new TextBox
+                {
+                    Name = "textBox" + mark.Id,
+                    Location = new Point(textBoxX, yPosition - 2),
+                    Size = new Size(100, 20)
+                };
+
+                // Проверяем, есть ли значение из MainForm
+                string valueFromMainForm = GetMarkValueFromMainForm(mark);
+
+                if (!string.IsNullOrEmpty(valueFromMainForm))
+                {
+                    // Устанавливаем значение из MainForm
+                    textBox.Text = valueFromMainForm;
+                    // Блокируем контрол
+                    textBox.Enabled = false;
+                    textBox.BackColor = Color.LightGray;
+                }
+
+                // Добавляем контролы в GroupBox
+                groupBoxMasks.Controls.Add(label);
+                groupBoxMasks.Controls.Add(textBox);
+
+                // Сохраняем ссылку на TextBox
+                markControls[mark.Id] = textBox;
+
+                yPosition += rowHeight;
+            }
         }
 
         private void CreateDynamicControls()
@@ -267,8 +352,30 @@ namespace CabinDesignTool
                     Directory.CreateDirectory(reportsFolder);
                 }
 
+                // Формируем имя файла из значений масок
+                string fileName = "Report";
+                if (markControls.Count > 0)
+                {
+                    List<string> maskValues = new List<string>();
+                    foreach (var kvp in markControls)
+                    {
+                        string value = kvp.Value.Text?.Trim();
+                        if (!string.IsNullOrEmpty(value))
+                        {
+                            // Заменяем недопустимые символы для имени файла
+                            value = string.Join("_", value.Split(Path.GetInvalidFileNameChars()));
+                            maskValues.Add(value);
+                        }
+                    }
+
+                    if (maskValues.Count > 0)
+                    {
+                        fileName = string.Join("_", maskValues);
+                    }
+                }
+
                 // Формируем путь к файлу Report.xml
-                string reportPath = Path.Combine(reportsFolder, "Report.xml");
+                string reportPath = Path.Combine(reportsFolder, fileName + ".xml");
 
                 // Загружаем существующий отчет или создаем новый
                 Report report;
@@ -287,6 +394,29 @@ namespace CabinDesignTool
                     Group = groupName ?? "Unknown",
                     PathModel = pathModel ?? ""
                 };
+
+                // Добавляем все маркеры из формы
+                foreach (var kvp in markControls)
+                {
+                    // Находим соответствующий Mark в Options
+                    string markValue = kvp.Key;
+                    if (options != null && options.Marks != null)
+                    {
+                        var optionMark = options.Marks.Find(m => m.Id == kvp.Key);
+                        if (optionMark != null && !string.IsNullOrEmpty(optionMark.MarkType))
+                        {
+                            markValue = optionMark.MarkType;
+                        }
+                    }
+
+                    ReportMark mark = new ReportMark
+                    {
+                        Name = kvp.Key,
+                        Mark = markValue,
+                        Value = kvp.Value.Text ?? ""
+                    };
+                    part.Marks.Add(mark);
+                }
 
                 // Добавляем все размеры из формы
                 foreach (var kvp in dimensionControls)
@@ -309,6 +439,49 @@ namespace CabinDesignTool
                         Value = kvp.Value.Value.ToString()
                     };
                     part.Dimensions.Add(dimension);
+                }
+
+                // Добавляем все группы опций из формы
+                foreach (var kvp in optionControls)
+                {
+                    if (kvp.Value.SelectedIndex >= 0)
+                    {
+                        // Находим соответствующую OptionGroup в Options
+                        OptionGroup optionGroup = null;
+                        if (options != null && options.OptionGroups != null)
+                        {
+                            optionGroup = options.OptionGroups.Find(og => og.Id == kvp.Key);
+                        }
+
+                        if (optionGroup != null)
+                        {
+                            // Создаем ReportOptionGroup
+                            ReportOptionGroup reportOptionGroup = new ReportOptionGroup
+                            {
+                                Name = optionGroup.Name,
+                                Id = optionGroup.Id
+                            };
+
+                            // Находим выбранную опцию
+                            string selectedOptionName = kvp.Value.SelectedItem?.ToString();
+                            Option selectedOption = optionGroup.Options.Find(o => o.Name == selectedOptionName);
+
+                            if (selectedOption != null)
+                            {
+                                // Создаем ReportOption с размерами
+                                ReportOption reportOption = new ReportOption
+                                {
+                                    Name = selectedOption.Name,
+                                    Id = selectedOption.Id,
+                                    Dimensions = new List<CabinDesignTool.Dimension>(selectedOption.Dimensions)
+                                };
+
+                                reportOptionGroup.Options.Add(reportOption);
+                            }
+
+                            part.OptionGroups.Add(reportOptionGroup);
+                        }
+                    }
                 }
 
                 // Удаляем старую часть с той же группой, если есть

@@ -1,0 +1,47 @@
+<Finishing>
+	<Group Name='Потолок'>
+		<Row 
+      Name="Амстердам"
+      PathModel="X:\Потолок\Амстердам\Потолок Амстердам _ 000.a3d"
+      PathImage="X:\Потолок\Амстердам\Снимок993.JPG"
+      PathXml="X:\Потолок\Амстердам\Options.xml"
+    />
+		<Row Name="Кореала" />
+		<Row Name="Венеция" />
+	</Group>
+  <Group Name='Пол'>
+    <Row
+		  Name="Проходной"
+		  PathModel=""
+		  PathImage=""
+		  PathXml=""
+	  />
+    <Row
+		  Name="ФКР"
+		  PathModel="X:\Пол\500.020.001.00 - Пол\500.020.001.00_Number_Side СБ - Пол.a3d"
+		  PathImage="X:\Пол\500.020.001.00 - Пол\Пол.JPG"
+		  PathXml="X:\Пол\500.020.001.00 - Пол\Options.xml"
+	  />
+	  <Row
+		  Name="Никакой"
+		  PathModel=""
+	  />
+  </Group>
+	<Group Name='Левая стенка'>
+		<Row Name="Со стойками" PathModel=""/>
+		<Row Name="Без стоек" PathModel=""/>
+		<Row Name="Венеция" PathModel=""/>
+	</Group>
+	<Group Name='Правая стенка'>
+		<Row Name="Со стойками" />
+		<Row Name="Без стоек" PathModel=""/>
+		<Row Name="Венеция" PathModel=""/>
+	</Group>  
+	<Group Name='Задняя стенка'>
+		<Row Name="Зеркало в полный рост" />
+		<Row Name="Зеркало от поручня" />
+		<Row Name="Со стойками" />
+		<Row Name="Без стоек" />
+	</Group>
+  <Group Name='Передняя стенка' />
+</Finishing>

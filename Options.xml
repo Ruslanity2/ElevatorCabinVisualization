@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <Options xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+	<Marks>
+		<Mark name="Номер заказа" mark="Number" id="Номер заказа" />
+	</Marks>
 	<Dimensions>
 		<Dimension name="Высота" dimension="H" difference="0" min="0" max="2500" inc="10" default="2000" id="Высота" />
 		<Dimension name="ШиринаSSSS" dimension="W" difference="0" min="0" max="1200" inc="10" default="600" id="Ширина" />

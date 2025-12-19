@@ -74,6 +74,15 @@ namespace ElevatorCabinVisualization
         // Словарь для связи имен параметров с NumericUpDown контролами
         private Dictionary<string, NumericUpDown> parameterControls = new Dictionary<string, NumericUpDown>();
 
+        // Словарь для связи имен маркеров с TextBox контролами
+        private Dictionary<string, TextBox> markControls = new Dictionary<string, TextBox>();
+
+        // GroupBox для маркеров
+        private GroupBox marksPanel;
+        private Button btnToggleMarks;
+        private bool isMarksPanelCollapsed = false;
+        private int marksPanelExpandedHeight = 100;
+
         // GroupBox для параметров
         private GroupBox parametersPanel;
         private Button btnToggleParameters;
@@ -82,6 +91,16 @@ namespace ElevatorCabinVisualization
 
         // Кнопка закрытия
         private Button btnClose;
+
+        // Кнопка выгрузки
+        private Button btnExport;
+
+        // StatusStrip и его элементы
+        private StatusStrip statusStrip;
+        private ToolStripLabel lblExportPath;
+        private ToolStripTextBox txtExportPath;
+        private ToolStripButton btnBrowseFolder;
+        private ToolStripLabel lblStatus;
 
         public MainForm()
         {
@@ -94,8 +113,11 @@ namespace ElevatorCabinVisualization
             LoadFinishingData();
             LoadParamsData();
             InitializeCabinPoints();
+            InitializeStatusStrip();
+            InitializeMarksPanel();
             InitializeParametersPanel();
             InitializeControls();
+            InitializeExportButton();
             InitializeCloseButton();
 
             this.Paint += Form1_Paint;
@@ -119,7 +141,7 @@ namespace ElevatorCabinVisualization
 
         private void LoadFinishingData()
         {
-            string xmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Finishing.xml");
+            string xmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "Finishing.xml");
             try
             {
                 finishingData = Finishing.Load(xmlPath);
@@ -133,7 +155,7 @@ namespace ElevatorCabinVisualization
 
         private void LoadParamsData()
         {
-            string xmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Params.xml");
+            string xmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "Params.xml");
             try
             {
                 paramsData = Params.Load(xmlPath);
@@ -249,12 +271,126 @@ namespace ElevatorCabinVisualization
             this.Controls.Add(controlPanel);
         }
 
+        private void InitializeMarksPanel()
+        {
+            // GroupBox для маркеров слева (самый верхний)
+            marksPanel = new GroupBox();
+            marksPanel.Text = "Маски";
+            marksPanel.Location = new Point(20, 20);
+            marksPanel.Width = 250;
+            marksPanel.BackColor = Color.FromArgb(200, 50, 60, 80);
+            marksPanel.ForeColor = Color.White;
+            marksPanel.Font = new Font("Arial", 10, FontStyle.Bold);
+
+            // Кнопка сворачивания/разворачивания
+            btnToggleMarks = new Button();
+            btnToggleMarks.Location = new Point(marksPanel.Width - 30, 10);
+            btnToggleMarks.Size = new Size(20, 20);
+            btnToggleMarks.FlatStyle = FlatStyle.Flat;
+            btnToggleMarks.FlatAppearance.BorderSize = 0;
+            btnToggleMarks.BackColor = Color.Transparent;
+            btnToggleMarks.ForeColor = Color.White;
+            btnToggleMarks.Font = new Font("Arial", 10, FontStyle.Bold);
+            btnToggleMarks.Text = "▲";
+            btnToggleMarks.Cursor = Cursors.Hand;
+            btnToggleMarks.Click += ToggleMarksPanel;
+            marksPanel.Controls.Add(btnToggleMarks);
+
+            // Очищаем словарь контролов
+            markControls.Clear();
+
+            // Создаем контролы динамически из paramsData.Marks
+            if (paramsData != null && paramsData.Marks != null && paramsData.Marks.Count > 0)
+            {
+                int yPos = 35;
+                int spacing = 28;
+                int labelX = 10;
+                int textBoxX = 140;
+
+                foreach (var mark in paramsData.Marks)
+                {
+                    // Создаем Label для маркера
+                    Label label = CreateInlineLabel(mark.Name, labelX, yPos);
+                    marksPanel.Controls.Add(label);
+
+                    // Создаем TextBox для маркера
+                    TextBox textBox = new TextBox();
+                    textBox.Location = new Point(textBoxX, yPos);
+                    textBox.Width = 100;
+                    textBox.Font = new Font("Arial", 10, FontStyle.Regular);
+                    textBox.BackColor = Color.FromArgb(70, 80, 100);
+                    textBox.ForeColor = Color.White;
+                    textBox.BorderStyle = BorderStyle.FixedSingle;
+
+                    marksPanel.Controls.Add(textBox);
+
+                    // Сохраняем ссылку на контрол в словаре
+                    markControls[mark.Name] = textBox;
+
+                    yPos += spacing;
+                }
+
+                // Подгоняем высоту GroupBox под количество маркеров
+                marksPanelExpandedHeight = yPos + 10;
+                marksPanel.Height = marksPanelExpandedHeight;
+            }
+            else
+            {
+                // Если маркеров нет, устанавливаем минимальную высоту
+                marksPanelExpandedHeight = 60;
+                marksPanel.Height = marksPanelExpandedHeight;
+            }
+
+            this.Controls.Add(marksPanel);
+        }
+
+        private void ToggleMarksPanel(object sender, EventArgs e)
+        {
+            isMarksPanelCollapsed = !isMarksPanelCollapsed;
+
+            if (isMarksPanelCollapsed)
+            {
+                // Сворачиваем: скрываем все контролы кроме кнопки сворачивания
+                foreach (Control control in marksPanel.Controls)
+                {
+                    if (control != btnToggleMarks)
+                    {
+                        control.Visible = false;
+                    }
+                }
+                marksPanel.Height = 35; // Только заголовок
+                btnToggleMarks.Text = "▼";
+            }
+            else
+            {
+                // Разворачиваем: показываем все контролы
+                foreach (Control control in marksPanel.Controls)
+                {
+                    control.Visible = true;
+                }
+                marksPanel.Height = marksPanelExpandedHeight;
+                btnToggleMarks.Text = "▲";
+            }
+
+            // Пересчитываем положение панели параметров
+            int parametersPanelY = marksPanel.Location.Y + marksPanel.Height + 10;
+            parametersPanel.Location = new Point(parametersPanel.Location.X, parametersPanelY);
+
+            // Пересчитываем положение контрольной панели
+            int controlPanelY = parametersPanel.Location.Y + parametersPanel.Height + 10;
+            controlPanel.Location = new Point(controlPanel.Location.X, controlPanelY);
+
+            // Перерисовываем форму
+            this.Invalidate();
+        }
+
         private void InitializeParametersPanel()
         {
-            // GroupBox для параметров слева
+            // GroupBox для параметров слева (под панелью маркеров)
             parametersPanel = new GroupBox();
             parametersPanel.Text = "Параметры кабины";
-            parametersPanel.Location = new Point(20, 20);
+            int parametersPanelY = marksPanel.Location.Y + marksPanel.Height + 10;
+            parametersPanel.Location = new Point(20, parametersPanelY);
             parametersPanel.Width = 250;
             // Высота будет установлена динамически после создания контролов
             parametersPanel.BackColor = Color.FromArgb(200, 50, 60, 80);
@@ -436,6 +572,101 @@ namespace ElevatorCabinVisualization
                     numDoorMargin = control;
                     break;
             }
+        }
+
+        private void InitializeStatusStrip()
+        {
+            statusStrip = new StatusStrip();
+            statusStrip.BackColor = Color.FromArgb(50, 60, 80);
+            statusStrip.ForeColor = Color.White;
+
+            // Label "Путь выгрузки"
+            lblExportPath = new ToolStripLabel();
+            lblExportPath.Text = "Путь выгрузки: ";
+            lblExportPath.ForeColor = Color.White;
+
+            // TextBox для пути
+            txtExportPath = new ToolStripTextBox();
+            txtExportPath.Size = new Size(150, 23);
+            txtExportPath.BackColor = Color.FromArgb(70, 80, 100);
+            txtExportPath.ForeColor = Color.White;
+            txtExportPath.BorderStyle = BorderStyle.FixedSingle;
+
+            // Кнопка выбора папки (используем текстовый символ папки)
+            btnBrowseFolder = new ToolStripButton();
+            btnBrowseFolder.Text = "📁";
+            btnBrowseFolder.ForeColor = Color.White;
+            btnBrowseFolder.Click += BtnBrowseFolder_Click;
+
+            // Label "Строка статуса"
+            lblStatus = new ToolStripLabel();
+            lblStatus.Text = "Строка статуса";
+            lblStatus.ForeColor = Color.White;
+            lblStatus.AutoSize = true; // Заполняет оставшееся пространство
+            lblStatus.TextAlign = ContentAlignment.MiddleLeft;
+
+            // Добавляем элементы в StatusStrip
+            statusStrip.Items.Add(lblExportPath);
+            statusStrip.Items.Add(txtExportPath);
+            statusStrip.Items.Add(btnBrowseFolder);
+            statusStrip.Items.Add(lblStatus);
+
+            this.Controls.Add(statusStrip);
+        }
+
+        private void BtnBrowseFolder_Click(object sender, EventArgs e)
+        {
+            // Если в txtExportPath указана существующая папка, открываем её в проводнике
+            if (!string.IsNullOrEmpty(txtExportPath.Text) && Directory.Exists(txtExportPath.Text))
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start("explorer.exe", txtExportPath.Text);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Ошибка при открытии папки: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                // Если папки нет, открываем диалог выбора папки
+                using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
+                {
+                    folderDialog.Description = "Выберите папку для выгрузки";
+
+                    if (folderDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        txtExportPath.Text = folderDialog.SelectedPath;
+                    }
+                }
+            }
+        }
+
+        private void InitializeExportButton()
+        {
+            btnExport = new Button();
+            int exportButtonY = controlPanel.Location.Y + controlPanel.Height + 10;
+            btnExport.Location = new Point(20, exportButtonY);
+            btnExport.Width = 250;
+            btnExport.Height = 35;
+            btnExport.Text = "Выполнить выгрузку";
+            btnExport.Font = new Font("Arial", 10, FontStyle.Bold);
+            btnExport.BackColor = Color.FromArgb(200, 80, 120, 180);
+            btnExport.ForeColor = Color.White;
+            btnExport.FlatStyle = FlatStyle.Flat;
+            btnExport.FlatAppearance.BorderColor = Color.White;
+            btnExport.FlatAppearance.BorderSize = 1;
+            btnExport.Cursor = Cursors.Hand;
+            btnExport.Click += BtnExport_Click;
+
+            this.Controls.Add(btnExport);
+        }
+
+        private void BtnExport_Click(object sender, EventArgs e)
+        {
+            // Здесь будет логика выгрузки
+            lblStatus.Text = "Выгрузка выполнена!";
         }
 
         private void InitializeCloseButton()
@@ -646,7 +877,7 @@ namespace ElevatorCabinVisualization
                     return;
                 }
 
-                // Собираем значения динамически из Params.xml
+                // Собираем значения параметров динамически из Params.xml
                 Dictionary<string, decimal> mainFormValues = new Dictionary<string, decimal>();
 
                 if (paramsData != null && paramsData.Parameters != null)
@@ -659,8 +890,21 @@ namespace ElevatorCabinVisualization
                     }
                 }
 
-                // Открываем форму с переданными параметрами
-                CabinDesignTool.CabinDesignForm designForm = new CabinDesignTool.CabinDesignForm(pathXml, pathImage, groupName, pathModel, mainFormValues);
+                // Собираем значения маркеров динамически из Params.xml
+                Dictionary<string, string> mainFormMarkValues = new Dictionary<string, string>();
+
+                if (paramsData != null && paramsData.Marks != null)
+                {
+                    foreach (var mark in paramsData.Marks)
+                    {
+                        // Используем текущее значение из TextBox контролов
+                        string currentValue = GetMarkValue(mark.Name);
+                        mainFormMarkValues[mark.Name] = currentValue;
+                    }
+                }
+
+                // Открываем форму с переданными параметрами и маркерами
+                CabinDesignTool.CabinDesignForm designForm = new CabinDesignTool.CabinDesignForm(pathXml, pathImage, groupName, pathModel, mainFormValues, mainFormMarkValues);
                 designForm.ShowDialog(this);
             };
 
@@ -685,6 +929,19 @@ namespace ElevatorCabinVisualization
 
             // Если ничего не найдено, возвращаем 0
             return 0;
+        }
+
+        private string GetMarkValue(string markName)
+        {
+            // Пытаемся найти контрол в словаре по имени маркера
+            if (markControls.ContainsKey(markName))
+            {
+                TextBox control = markControls[markName];
+                return control?.Text ?? string.Empty;
+            }
+
+            // Если ничего не найдено, возвращаем пустую строку
+            return string.Empty;
         }
 
         private void InitializeCabinPoints()
