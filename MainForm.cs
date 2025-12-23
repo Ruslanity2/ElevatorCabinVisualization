@@ -594,6 +594,7 @@ namespace ElevatorCabinVisualization
 
             // Кнопка выбора папки (используем текстовый символ папки)
             btnBrowseFolder = new ToolStripButton();
+            btnBrowseFolder.Font = new Font("Arial", 12, FontStyle.Regular);
             btnBrowseFolder.Text = "📁";
             btnBrowseFolder.ForeColor = Color.White;
             btnBrowseFolder.Click += BtnBrowseFolder_Click;
@@ -665,8 +666,31 @@ namespace ElevatorCabinVisualization
 
         private void BtnExport_Click(object sender, EventArgs e)
         {
-            // Здесь будет логика выгрузки
-            lblStatus.Text = "Выгрузка выполнена!";
+            // Проверяем, что путь указан и существует
+            if (string.IsNullOrWhiteSpace(txtExportPath.Text))
+            {
+                MessageBox.Show("Укажите путь для выгрузки файлов",
+                    "Внимание", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                lblStatus.Text = "Ошибка: не указан путь выгрузки";
+                return;
+            }
+
+            if (!Directory.Exists(txtExportPath.Text))
+            {
+                MessageBox.Show($"Указанный путь не существует: {txtExportPath.Text}",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                lblStatus.Text = "Ошибка: путь не существует";
+                return;
+            }
+
+            lblStatus.Text = "Выполняется выгрузка...";
+            Application.DoEvents(); // Обновляем UI
+
+            KompasExporter kompasExporter = new KompasExporter();
+            kompasExporter.ExportPath = txtExportPath.Text;
+            kompasExporter.ProcessReportParts();
+
+            lblStatus.Text = $"Выгрузка выполнена успешно в: {txtExportPath.Text}";
         }
 
         private void InitializeCloseButton()

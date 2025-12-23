@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Xml.Serialization;
-using CabinDesignTool;
 
 namespace ElevatorCabinVisualization
 {
@@ -113,6 +112,6 @@ namespace ElevatorCabinVisualization
 
         [XmlArray("Dimensions")]
         [XmlArrayItem("Dimension")]
-        public List<Dimension> Dimensions { get; set; } = new List<Dimension>();
+        public List<ReportDimension> Dimensions { get; set; } = new List<ReportDimension>();
     }
 }

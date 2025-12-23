@@ -473,8 +473,19 @@ namespace CabinDesignTool
                                 {
                                     Name = selectedOption.Name,
                                     Id = selectedOption.Id,
-                                    Dimensions = new List<CabinDesignTool.Dimension>(selectedOption.Dimensions)
+                                    Dimensions = new List<ReportDimension>()
                                 };
+
+                                // Конвертируем Dimension из CabinDesignTool в ReportDimension для Report
+                                foreach (var sourceDimension in selectedOption.Dimensions)
+                                {
+                                    reportOption.Dimensions.Add(new ReportDimension
+                                    {
+                                        Name = sourceDimension.Name,
+                                        Dimension = sourceDimension.DimensionCode,
+                                        Value = sourceDimension.Value.ToString()
+                                    });
+                                }
 
                                 reportOptionGroup.Options.Add(reportOption);
                             }
@@ -497,7 +508,7 @@ namespace CabinDesignTool
                 // Сохраняем отчет
                 report.Save(reportPath);
 
-                MessageBox.Show($"Отчет успешно сохранен:\n{reportPath}", "Передать", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                //MessageBox.Show($"Отчет успешно сохранен:\n{reportPath}", "Передать", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 // Закрываем форму после успешного сохранения
                 this.Close();

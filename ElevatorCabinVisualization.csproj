@@ -21,7 +21,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -35,6 +35,23 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Kompas6API5">
+      <HintPath>..\..\..\..\Program Files\ASCON\KOMPAS-3D v22\SDK\Samples\CSharp\Common\Kompas6API5.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Kompas6Constants">
+      <HintPath>..\..\..\..\Program Files\ASCON\KOMPAS-3D v22\SDK\Samples\CSharp\Common\Kompas6Constants.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Kompas6Constants3D">
+      <HintPath>..\..\..\..\Program Files\ASCON\KOMPAS-3D v22\SDK\Samples\CSharp\Common\Kompas6Constants3D.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="KompasAPI7">
+      <HintPath>..\..\..\..\Program Files\ASCON\KOMPAS-3D v22\SDK\Samples\CSharp\Common\KompasAPI7.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
@@ -47,6 +64,9 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="CabinDesignForm\CabinDesignForm.Designer.cs" />
+    <Compile Include="Data\ObjectAssemblyKompas.cs" />
+    <Compile Include="Kompas\KompasExporter.cs" />
+    <Compile Include="Kompas\KompasRestartService.cs" />
     <Compile Include="Settings\Finishing.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
@@ -72,6 +92,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <SubType>Designer</SubType>
     </Content>
+    <Content Include="Settings\Report.xml" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
