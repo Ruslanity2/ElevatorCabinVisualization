@@ -13,9 +13,14 @@ namespace ElevatorCabinVisualization
         public string Name { get; set; }
         public string NewName { get; set; }
         public string FullName { get; set; }
+        public string NewFullName { get; set; }
+        public string DxfFilePath { get; set; }
+        public string PdfFilePath { get; set; }
         public bool IsLocal { get; set; }
         public string SpecificationSection { get; set; }
         public bool IsDetail { get; set; }
+        public List<string> DrawingReferences { get; set; }
+        public string NewDrawingName { get; set; }
 
         // Связи в дереве
         public ObjectAssemblyKompas Parent { get; set; }
