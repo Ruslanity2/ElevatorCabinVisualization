@@ -410,20 +410,35 @@ namespace ElevatorCabinVisualization
         }
 
         /// <summary>
-        /// Заменяет переменные в документе Kompas 3D согласно словарю замен
+        /// Заменяет ссылки на файлы компонентов в сборке на новые пути
         /// </summary>
         /// <param name="doc">Документ Kompas 3D</param>
-        /// <param name="keyValuePairs">Словарь замен: ключ - имя переменной, значение - новое значение</param>
+        /// <param name="node">Узел сборки с дочерними элементами</param>
         private void ReplaceParts(IKompasDocument3D doc, ObjectAssemblyKompas node)
         {
             if (doc == null || node == null)
                 return;
 
-            IPart7 part7 = doc.TopPart;
-            foreach (var item in collection)
-            {
+            if (node.Children == null || node.Children.Count == 0)
+                return;
 
-            }           
+            IPart7 part7 = doc.TopPart;
+            foreach (IPart7 item in part7.Parts)
+            {
+                string currentFileName = item.FileName;
+
+                // Ищем соответствующий child по совпадению FullName с текущим FileName
+                ObjectAssemblyKompas matchingChild = node.Children
+                    .FirstOrDefault(child => !string.IsNullOrEmpty(child.FullName) &&
+                                            child.FullName.Equals(currentFileName, StringComparison.OrdinalIgnoreCase));
+
+                if (matchingChild != null && !string.IsNullOrEmpty(matchingChild.NewFullName))
+                {
+                    // Заменяем ссылку на файл на новый путь
+                    item.FileName = matchingChild.NewFullName;
+                    item.Update();
+                }
+            }
             doc.RebuildDocument();
         }
 
@@ -900,7 +915,9 @@ namespace ElevatorCabinVisualization
                         GetDrawingReferences(node, doc);
                         RenameNode(node, dictionaryofreplacements, doc);
                         ReplaceVariables(doc, dictionaryvariables, node);
-                        ReplaceParts(doc, dictionaryvariables, node);
+                        ReplaceParts(doc, node);
+                        doc.SaveAs(node.NewFullName);
+                        ExportPdf(doc, node);
                         doc.Close(DocumentCloseOptions.kdDoNotSaveChanges);
                     }
                 }
