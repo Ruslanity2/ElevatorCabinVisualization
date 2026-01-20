@@ -403,10 +403,40 @@ namespace ElevatorCabinVisualization
                     variableDim.Value = Convert.ToDouble(item.Value); //Передал в модель значение поля NumericUpDown с формы в модель
                 }
             }
+
             doc.RebuildDocument();
-            ksPart ksPar = kompas.TransferInterface(part7, 1, 0);
-            ksPar.marking = node.NewDesignation;
-            ksPar.Update();
+            //ksPart ksPar = kompas.TransferInterface(part7, 1, 0);
+            //ksPar.marking = node.NewDesignation;
+            //ksPar.Update();
+        }
+
+        private void ReplaceMaterials(IKompasDocument3D doc, Dictionary<string, string> keyValuePairs)
+        {
+            if (doc == null || keyValuePairs == null || keyValuePairs.Count == 0)
+                return;
+            IPart7 part7 = doc.TopPart;
+            IPropertyMng propertyMng = (IPropertyMng)application;
+            var properties = propertyMng.GetProperties(doc);
+            IPropertyKeeper propertyKeeper = (IPropertyKeeper)part7;
+            foreach (IProperty item in properties)
+            {
+                if (item.Name == "isMaterialModified")
+                {
+                    dynamic propertyValue;
+                    bool source;
+                    propertyKeeper.GetPropertyValue((_Property)item, out propertyValue, false, out source);
+
+                    string valueStr = Convert.ToString(propertyValue);
+                    if (!string.IsNullOrEmpty(valueStr))
+                    {
+                        IEmbodimentsManager embodimentsManager = (IEmbodimentsManager)doc;
+                        IEmbodiment embodiment = embodimentsManager.CurrentEmbodiment;
+                        embodiment.SetMaterial(Convert.ToString(keyValuePairs["M"]), Convert.ToDouble(7.85));
+                        part7.Update();
+                    }
+                    break;
+                }
+            }
         }
 
         /// <summary>
@@ -517,20 +547,39 @@ namespace ElevatorCabinVisualization
             // Создаем новый словарь и копируем в него переданный
             Dictionary<string, string> extendedDictionary = new Dictionary<string, string>(keyValuePairs);
 
+            IPart7 part7 = doc3D.TopPart;
+            IModelObject modelObject = (IModelObject)part7;
+            IFeature7 feature7 = modelObject.Owner;
+
             // TODO: Дополняем новый словарь дополнительными ключами и значениями из документа
             if (node.Designation.Contains("Smm"))
             {
                 string Thick = "";
-                IPart7 part7 = doc3D.TopPart;
                 ISheetMetalContainer sheetMetalContainer = part7 as ISheetMetalContainer;
                 ISheetMetalBodies sheetMetalBodies = sheetMetalContainer.SheetMetalBodies;
                 int bodies = sheetMetalBodies.Count;
                 ISheetMetalBody sheetMetalBody = sheetMetalBodies.SheetMetalBody[0];
-                IModelObject modelObject = (IModelObject)part7;
-                IFeature7 feature7 = modelObject.Owner;
                 IVariable7 variable7 = feature7.Variable[false, true, 0];
                 Thick = variable7.Value.ToString(CultureInfo.CreateSpecificCulture("en-GB"));
                 extendedDictionary.Add("S", Thick);
+            }
+            if (node.Designation.Contains("Ld"))
+            {
+                IVariable7 variable7 = feature7.Variable[false, true, "Ld"];
+                double value = variable7.Value;
+                extendedDictionary.Add("Ld", value.ToString());
+            }
+            if (node.Designation.Contains("Lw"))
+            {
+                IVariable7 variable7 = feature7.Variable[false, true, "Lw"];
+                double value = variable7.Value;
+                extendedDictionary.Add("Lw", value.ToString());
+            }
+            if (node.Designation.Contains("Lh"))
+            {
+                IVariable7 variable7 = feature7.Variable[false, true, "Lh"];
+                double value = variable7.Value;
+                extendedDictionary.Add("Lh", value.ToString());
             }
             // Например:
             // extendedDictionary["ключ1"] = "значение1";
@@ -538,6 +587,10 @@ namespace ElevatorCabinVisualization
 
             // Обрабатываем текущий узел с расширенным словарем, здесь и происходит магия замены
             ProcessNode(node, extendedDictionary);
+
+            ksPart ksPar = kompas.TransferInterface(part7, 1, 0);
+            ksPar.marking = node.NewDesignation;
+            ksPar.Update();
         }
 
         /// <summary>
@@ -883,14 +936,6 @@ namespace ElevatorCabinVisualization
 
             try
             {
-                // Проверяем, что путь к файлу существует
-                //if (!File.Exists(node.FullName))
-                //{
-                //    MessageBox.Show($"Файл не найден: {node.FullName}\nУзел: {node.Name}",
-                //        "Предупреждение", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                //    return;
-                //}
-
                 // Открываем документ в Kompas
                 if (documents != null)
                 {
@@ -900,8 +945,10 @@ namespace ElevatorCabinVisualization
                         // Логика для листочков (деталей)
                         doc = (IKompasDocument3D)documents.Open(node.FullName, true, true);
                         GetDrawingReferences(node, doc);
-                        RenameNode(node, dictionaryofreplacements, doc);
                         ReplaceVariables(doc, dictionaryvariables, node);
+                        RenameNode(node, dictionaryofreplacements, doc);
+                        ReplaceMaterials(doc, dictionaryofreplacements);
+
                         doc.SaveAs(node.NewFullName);
                         ExportDxf(doc, node);
                         ExportPdf(doc, node);
@@ -913,8 +960,9 @@ namespace ElevatorCabinVisualization
                         // Логика для сборок (родителей)
                         doc = (IKompasDocument3D)documents.Open(node.FullName, true, false);
                         GetDrawingReferences(node, doc);
-                        RenameNode(node, dictionaryofreplacements, doc);
                         ReplaceVariables(doc, dictionaryvariables, node);
+                        RenameNode(node, dictionaryofreplacements, doc);
+
                         ReplaceParts(doc, node);
                         doc.SaveAs(node.NewFullName);
                         ExportPdf(doc, node);

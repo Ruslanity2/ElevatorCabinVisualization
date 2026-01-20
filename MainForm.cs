@@ -106,17 +106,17 @@ namespace ElevatorCabinVisualization
         {
             InitializeComponent();
             this.Text = "Кабина лифта";
-            this.Size = new Size(730, 700);
+            this.Size = new Size(730, 730);
             this.BackColor = Color.FromArgb(40, 50, 70);
             this.DoubleBuffered = true;
 
             LoadFinishingData();
             LoadParamsData();
-            InitializeCabinPoints();
             InitializeStatusStrip();
             InitializeMarksPanel();
             InitializeParametersPanel();
             InitializeControls();
+            InitializeCabinPoints(); // Должен быть после InitializeParametersPanel, чтобы numHeight/numWidth/numDepth были инициализированы
             InitializeExportButton();
             InitializeCloseButton();
 
@@ -260,6 +260,17 @@ namespace ElevatorCabinVisualization
             cmbBackWall = CreateComboBox(yPos, "Передняя стенка");
             controlPanel.Controls.Add(cmbBackWall);
             controlPanel.Controls.Add(CreateSettingsButton(yPos, "Передняя стенка", cmbBackWall));
+            yPos += spacing;
+
+            // Навесное оборудование (без управления видимостью на изометрии)
+            CheckBox chkEquipment = CreateToggleCheckBox("", yPos, Color.FromArgb(180, 200, 180, 160));
+            chkEquipment.Checked = false;
+            chkEquipment.Enabled = false; // Заблокирован, так как пока нечего скрывать/показывать
+            controlPanel.Controls.Add(chkEquipment);
+            UpdateEyeIcon(chkEquipment);
+            ComboBox cmbEquipment = CreateComboBox(yPos, "Навесное оборудование");
+            controlPanel.Controls.Add(cmbEquipment);
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Навесное оборудование", cmbEquipment));
             yPos += spacing;
 
             // Подгоняем высоту GroupBox под количество контролов
@@ -968,95 +979,148 @@ namespace ElevatorCabinVisualization
             return string.Empty;
         }
 
+        // Проецирует 3D точку на 2D экран с учётом поворотов
+        // rotY - поворот вокруг вертикальной оси Y (положительный = по часовой, если смотреть сверху)
+        // rotX - поворот вокруг горизонтальной оси X (положительный = наклон назад, отрицательный = наклон вперёд)
+        private Point Project3D(double x, double y, double z, double rotY, double rotX, double scale, int centerX, int centerY)
+        {
+            // Поворот вокруг оси Y (вертикальной)
+            double cosY = Math.Cos(rotY);
+            double sinY = Math.Sin(rotY);
+            double x1 = x * cosY - z * sinY;
+            double z1 = x * sinY + z * cosY;
+            double y1 = y;
+
+            // Поворот вокруг оси X (горизонтальной)
+            double cosX = Math.Cos(rotX);
+            double sinX = Math.Sin(rotX);
+            double y2 = y1 * cosX - z1 * sinX;
+            double z2 = y1 * sinX + z1 * cosX;
+            double x2 = x1;
+
+            // Проекция на экран (ортогональная)
+            // X экрана = X после поворотов
+            // Y экрана = -Y после поворотов (инвертируем, т.к. Y экрана растёт вниз)
+            int screenX = centerX + (int)(x2 * scale);
+            int screenY = centerY - (int)(y2 * scale);
+
+            return new Point(screenX, screenY);
+        }
+
         private void InitializeCabinPoints()
         {
             // Реальные размеры кабины в мм
-            double widthReal = (double)(numWidth?.Value ?? 1100);   // Ширина - слева направо
-            double depthReal = (double)(numDepth?.Value ?? 1100);   // Глубина - спереди назад
-            double heightReal = (double)(numHeight?.Value ?? 2100); // Высота
+            double widthReal = (double)(numWidth?.Value ?? 1100);   // Ширина - по оси X (влево-вправо)
+            double depthReal = (double)(numDepth?.Value ?? 800);    // Глубина - по оси Z (вперёд-назад)
+            double heightReal = (double)(numHeight?.Value ?? 2100); // Высота - по оси Y (вверх-вниз)
+
+            // Углы поворота:
+            // 1. Поворот вокруг вертикальной оси Y на 30° по часовой стрелке
+            // 2. Поворот вокруг горизонтальной оси X на 30° по часовой стрелке (наклон назад, видим потолок)
+            double rotY = 30.0 * Math.PI / 180.0;  // 30° по часовой = положительный угол
+            double rotX = 30.0 * Math.PI / 180.0;  // 30° по часовой = положительный угол (наклон назад)
 
             // Коэффициент масштабирования для отображения на форме
-            // Доступная область: от панели параметров (270px) до панели управления (750px) = 480px ширина
-            // Высота формы около 700px, оставляем запас
             double availableWidth = 480;
             double availableHeight = 500;
 
-            // Вычисляем максимальные проекции кабины в изометрии
-            double baseAngle = Math.PI / 6;
-            double verticalRotation = 10.0 * Math.PI / 180.0;
-            double horizontalTilt = 10.0 * Math.PI / 180.0;
-            double depthAngle = baseAngle + verticalRotation;
-            double widthAngle = -baseAngle + verticalRotation + horizontalTilt;
+            // Вычисляем габариты после поворотов для определения масштаба
+            // Проверяем все 8 вершин куба и находим min/max
+            double halfW = widthReal / 2;
+            double halfD = depthReal / 2;
+            double halfH = heightReal / 2;
 
-            // Проекция габаритов на плоскость экрана
-            double projectedWidth = Math.Abs(depthReal * Math.Cos(depthAngle)) + Math.Abs(widthReal * Math.Cos(widthAngle));
-            double projectedDepth = Math.Abs(depthReal * Math.Sin(depthAngle)) + Math.Abs(widthReal * Math.Sin(widthAngle));
-            double totalProjectedHeight = heightReal + projectedDepth;
+            // 8 вершин куба относительно центра
+            double[,] vertices = new double[8, 3]
+            {
+                { -halfW, -halfH, -halfD }, // 0: передний левый нижний
+                { -halfW, -halfH,  halfD }, // 1: задний левый нижний
+                {  halfW, -halfH,  halfD }, // 2: задний правый нижний
+                {  halfW, -halfH, -halfD }, // 3: передний правый нижний
+                { -halfW,  halfH, -halfD }, // 4: передний левый верхний
+                { -halfW,  halfH,  halfD }, // 5: задний левый верхний
+                {  halfW,  halfH,  halfD }, // 6: задний правый верхний
+                {  halfW,  halfH, -halfD }, // 7: передний правый верхний
+            };
+
+            // Проецируем все вершины и находим границы
+            double minPX = double.MaxValue, maxPX = double.MinValue;
+            double minPY = double.MaxValue, maxPY = double.MinValue;
+
+            for (int i = 0; i < 8; i++)
+            {
+                double x = vertices[i, 0];
+                double y = vertices[i, 1];
+                double z = vertices[i, 2];
+
+                // Поворот вокруг Y
+                double cosY = Math.Cos(rotY);
+                double sinY = Math.Sin(rotY);
+                double x1 = x * cosY - z * sinY;
+                double z1 = x * sinY + z * cosY;
+                double y1 = y;
+
+                // Поворот вокруг X
+                double cosX = Math.Cos(rotX);
+                double sinX = Math.Sin(rotX);
+                double y2 = y1 * cosX - z1 * sinX;
+                double x2 = x1;
+
+                if (x2 < minPX) minPX = x2;
+                if (x2 > maxPX) maxPX = x2;
+                if (y2 < minPY) minPY = y2;
+                if (y2 > maxPY) maxPY = y2;
+            }
+
+            double projectedWidth = maxPX - minPX;
+            double projectedHeight = maxPY - minPY;
 
             // Коэффициент масштабирования (берем минимальный, чтобы всё влезло)
             double scaleX = availableWidth / projectedWidth;
-            double scaleY = availableHeight / totalProjectedHeight;
-            double scale = Math.Min(scaleX, scaleY) * 0.9; // 0.9 для небольшого отступа
+            double scaleY = availableHeight / projectedHeight;
+            double scale = Math.Min(scaleX, scaleY) * 0.85;
 
-            // Применяем масштаб к размерам
-            double width = widthReal * scale;
-            double depth = depthReal * scale;
-            double height = heightReal * scale;
+            // Центр кабины на форме
+            int centerX = 500;
+            int centerY = (int)(availableHeight / 2) + 250;
 
-            // Центр кабины на форме (сдвинут влево ближе к панели параметров)
-            int centerX = 320;
-            int centerY = 100 + (int)(availableHeight / 2) + (int)(depth * Math.Sin(depthAngle));
+            // Вычисляем 8 вершин куба в 3D (относительно центра кабины)
+            // Кабина центрирована по X и Z, стоит на полу (Y от 0 до height)
+            Point[] points3D = new Point[8];
 
-            // Изометрические коэффициенты для осей
-            double depthX = Math.Cos(depthAngle);
-            double depthY = Math.Sin(depthAngle);
-            double widthX = Math.Cos(widthAngle);
-            double widthY = Math.Sin(widthAngle);
+            // Нижние точки (пол) - y = 0
+            points3D[0] = Project3D(-halfW, 0, -halfD, rotY, rotX, scale, centerX, centerY); // Передний левый нижний
+            points3D[1] = Project3D(-halfW, 0,  halfD, rotY, rotX, scale, centerX, centerY); // Задний левый нижний
+            points3D[2] = Project3D( halfW, 0,  halfD, rotY, rotX, scale, centerX, centerY); // Задний правый нижний
+            points3D[3] = Project3D( halfW, 0, -halfD, rotY, rotX, scale, centerX, centerY); // Передний правый нижний
 
-            // Вычисляем 8 вершин куба (чистая изометрия без перспективы)
-            // Нижние точки (пол) - z = 0
-            Point p0 = new Point(centerX, centerY); // Передний левый нижний (0,0,0)
+            // Верхние точки (потолок) - y = height
+            points3D[4] = Project3D(-halfW, heightReal, -halfD, rotY, rotX, scale, centerX, centerY); // Передний левый верхний
+            points3D[5] = Project3D(-halfW, heightReal,  halfD, rotY, rotX, scale, centerX, centerY); // Задний левый верхний
+            points3D[6] = Project3D( halfW, heightReal,  halfD, rotY, rotX, scale, centerX, centerY); // Задний правый верхний
+            points3D[7] = Project3D( halfW, heightReal, -halfD, rotY, rotX, scale, centerX, centerY); // Передний правый верхний
 
-            Point p1 = new Point(
-                centerX + (int)(depth * depthX),
-                centerY + (int)(depth * depthY)
-            ); // Задний левый нижний (0,depth,0)
+            Point p0 = points3D[0], p1 = points3D[1], p2 = points3D[2], p3 = points3D[3];
+            Point p4 = points3D[4], p5 = points3D[5], p6 = points3D[6], p7 = points3D[7];
 
-            Point p2 = new Point(
-                centerX + (int)(depth * depthX + width * widthX),
-                centerY + (int)(depth * depthY + width * widthY)
-            ); // Задний правый нижний (width,depth,0)
+            // Собираем грани
 
-            Point p3 = new Point(
-                centerX + (int)(width * widthX),
-                centerY + (int)(width * widthY)
-            ); // Передний правый нижний (width,0,0)
-
-            // Верхние точки (потолок) - z = height
-            // В изометрии вертикальные линии остаются строго вертикальными
-            Point p4 = new Point(p0.X, p0.Y - (int)height); // Передний левый верхний
-            Point p5 = new Point(p1.X, p1.Y - (int)height); // Задний левый верхний
-            Point p6 = new Point(p2.X, p2.Y - (int)height); // Задний правый верхний
-            Point p7 = new Point(p3.X, p3.Y - (int)height); // Передний правый верхний
-
-            // Собираем грани (обход против часовой стрелки, если смотреть снаружи)
-
-            // Пол (нижняя грань, смотрим сверху вниз)
+            // Пол (нижняя грань)
             floorPoints = new Point[] { p0, p3, p2, p1 };
 
-            // Потолок (верхняя грань, смотрим снизу вверх)
+            // Потолок (верхняя грань)
             ceilingPoints = new Point[] { p4, p5, p6, p7 };
 
-            // Передняя стена (ближайшая к нам)
+            // Передняя стена (ближайшая к зрителю, Z = -halfD)
             frontWallPoints = new Point[] { p0, p3, p7, p4 };
 
-            // Задняя стена (с дверью, дальняя от нас)
+            // Задняя стена (с дверью, Z = +halfD)
             backWallPoints = new Point[] { p1, p2, p6, p5 };
 
-            // Левая стена
+            // Левая стена (X = -halfW)
             leftWallPoints = new Point[] { p0, p1, p5, p4 };
 
-            // Правая стена
+            // Правая стена (X = +halfW)
             rightWallPoints = new Point[] { p3, p2, p6, p7 };
         }
 
@@ -1113,68 +1177,88 @@ namespace ElevatorCabinVisualization
                 g.FillPolygon(brush, backWallPoints);
             }
 
-            // Рисуем дверь поверх стены в изометрии
+            // Рисуем дверь поверх стены
             double doorWidthReal = (double)(numDoorWidth?.Value ?? 800);   // Ширина двери в мм
             double doorHeightReal = (double)(numDoorHeight?.Value ?? 2000); // Высота двери в мм
             double doorMarginReal = (double)(numDoorMargin?.Value ?? 150);  // Отступ от левого края в мм (Заплечик)
 
             // Вычисляем коэффициент масштабирования (тот же, что для кабины)
             double widthReal = (double)(numWidth?.Value ?? 1100);
-            double depthReal = (double)(numDepth?.Value ?? 1100);
+            double depthReal = (double)(numDepth?.Value ?? 800);
             double heightReal = (double)(numHeight?.Value ?? 2100);
+
+            // Углы поворота (те же, что в InitializeCabinPoints)
+            double rotY = 30.0 * Math.PI / 180.0;
+            double rotX = 30.0 * Math.PI / 180.0;
 
             double availableWidth = 480;
             double availableHeight = 500;
 
-            double baseAngle = Math.PI / 6;
-            double verticalRotation = 10.0 * Math.PI / 180.0;
-            double horizontalTilt = 10.0 * Math.PI / 180.0;
-            double depthAngle = baseAngle + verticalRotation;
-            double widthAngle = -baseAngle + verticalRotation + horizontalTilt;
+            // Вычисляем габариты после поворотов для определения масштаба
+            double halfW = widthReal / 2;
+            double halfD = depthReal / 2;
+            double halfH = heightReal / 2;
 
-            double projectedWidth = Math.Abs(depthReal * Math.Cos(depthAngle)) + Math.Abs(widthReal * Math.Cos(widthAngle));
-            double projectedDepth = Math.Abs(depthReal * Math.Sin(depthAngle)) + Math.Abs(widthReal * Math.Sin(widthAngle));
-            double totalProjectedHeight = heightReal + projectedDepth;
+            double[,] vertices = new double[8, 3]
+            {
+                { -halfW, -halfH, -halfD },
+                { -halfW, -halfH,  halfD },
+                {  halfW, -halfH,  halfD },
+                {  halfW, -halfH, -halfD },
+                { -halfW,  halfH, -halfD },
+                { -halfW,  halfH,  halfD },
+                {  halfW,  halfH,  halfD },
+                {  halfW,  halfH, -halfD },
+            };
+
+            double minPX = double.MaxValue, maxPX = double.MinValue;
+            double minPY = double.MaxValue, maxPY = double.MinValue;
+
+            for (int i = 0; i < 8; i++)
+            {
+                double x = vertices[i, 0];
+                double y = vertices[i, 1];
+                double z = vertices[i, 2];
+
+                double cosY = Math.Cos(rotY);
+                double sinY = Math.Sin(rotY);
+                double x1 = x * cosY - z * sinY;
+                double z1 = x * sinY + z * cosY;
+                double y1 = y;
+
+                double cosX = Math.Cos(rotX);
+                double sinX = Math.Sin(rotX);
+                double y2 = y1 * cosX - z1 * sinX;
+                double x2 = x1;
+
+                if (x2 < minPX) minPX = x2;
+                if (x2 > maxPX) maxPX = x2;
+                if (y2 < minPY) minPY = y2;
+                if (y2 > maxPY) maxPY = y2;
+            }
+
+            double projectedWidth = maxPX - minPX;
+            double projectedHeight = maxPY - minPY;
 
             double scaleX = availableWidth / projectedWidth;
-            double scaleY = availableHeight / totalProjectedHeight;
-            double scale = Math.Min(scaleX, scaleY) * 0.9;
+            double scaleY = availableHeight / projectedHeight;
+            double scale = Math.Min(scaleX, scaleY) * 0.85;
 
-            // Применяем масштаб к размерам двери
-            double doorWidth = doorWidthReal * scale;
-            double doorHeight = doorHeightReal * scale;
-            double doorMargin = doorMarginReal * scale;
+            int centerX = 500;
+            int centerY = (int)(availableHeight / 2) + 250;
 
-            // Изометрические коэффициенты для ширины двери
-            double widthX = Math.Cos(widthAngle);
-            double widthY = Math.Sin(widthAngle);
+            // Дверь находится на задней стене (Z = +halfD)
+            // Левый край двери: X = -halfW + doorMargin
+            // Правый край двери: X = -halfW + doorMargin + doorWidth
+            double doorLeftX = -halfW + doorMarginReal;
+            double doorRightX = doorLeftX + doorWidthReal;
+            double doorZ = halfD; // Задняя стена
 
-            // Базовая точка двери (левый нижний угол задней стены)
-            Point basePoint = backWallPoints[0]; // p1 - Задний левый нижний
-
-            // Рассчитываем точки двери в изометрии
-            // Нижняя левая точка двери (смещение от левого края стены)
-            Point doorBottomLeft = new Point(
-                basePoint.X + (int)(doorMargin * widthX),
-                basePoint.Y + (int)(doorMargin * widthY)
-            );
-
-            // Нижняя правая точка двери
-            Point doorBottomRight = new Point(
-                doorBottomLeft.X + (int)(doorWidth * widthX),
-                doorBottomLeft.Y + (int)(doorWidth * widthY)
-            );
-
-            // Верхние точки двери (строго вертикально вверх)
-            Point doorTopRight = new Point(
-                doorBottomRight.X,
-                doorBottomRight.Y - (int)doorHeight
-            );
-
-            Point doorTopLeft = new Point(
-                doorBottomLeft.X,
-                doorBottomLeft.Y - (int)doorHeight
-            );
+            // Точки двери в 3D
+            Point doorBottomLeft = Project3D(doorLeftX, 0, doorZ, rotY, rotX, scale, centerX, centerY);
+            Point doorBottomRight = Project3D(doorRightX, 0, doorZ, rotY, rotX, scale, centerX, centerY);
+            Point doorTopRight = Project3D(doorRightX, doorHeightReal, doorZ, rotY, rotX, scale, centerX, centerY);
+            Point doorTopLeft = Project3D(doorLeftX, doorHeightReal, doorZ, rotY, rotX, scale, centerX, centerY);
 
             Point[] doorPoints = new Point[] { doorBottomLeft, doorBottomRight, doorTopRight, doorTopLeft };
 
@@ -1188,14 +1272,12 @@ namespace ElevatorCabinVisualization
             {
                 g.DrawPolygon(doorPen, doorPoints);
 
-                // Вертикальное разделение двери (посередине, строго вертикально)
-                int midX = (doorBottomLeft.X + doorBottomRight.X) / 2;
-                int midY = (doorBottomLeft.Y + doorBottomRight.Y) / 2;
-                int midTopY = midY - (int)doorHeight;
+                // Вертикальное разделение двери (посередине)
+                double doorMidX = (doorLeftX + doorRightX) / 2;
+                Point doorMidBottom = Project3D(doorMidX, 0, doorZ, rotY, rotX, scale, centerX, centerY);
+                Point doorMidTop = Project3D(doorMidX, doorHeightReal, doorZ, rotY, rotX, scale, centerX, centerY);
 
-                g.DrawLine(doorPen,
-                    midX, midY,
-                    midX, midTopY);
+                g.DrawLine(doorPen, doorMidBottom, doorMidTop);
             }
 
             // Обводка стены
