@@ -12,15 +12,15 @@
   <Group Name='Пол'>
     <Row
 		  Name="Проходной"
-		  PathModel=""
-		  PathImage=""
-		  PathXml=""
+		  PathModel="X:\Пол\500.01.01.00.00 - Пол (непроходной)\500.01.01.00.00_W_D СБ - Пол.a3d"
+      PathImage="X:\Пол\500.01.01.00.00 - Пол (непроходной)\Снимок.JPG"
+		  PathXml="X:\Пол\500.01.01.00.00 - Пол (непроходной)\Options.xml"
 	  />
     <Row
 		  Name="ФКР"
-		  PathModel="X:\Пол\500.020.001.00 - Пол\500.020.001.00_Number_Side СБ - Пол.a3d"
-		  PathImage="X:\Пол\500.020.001.00 - Пол\Пол.JPG"
-		  PathXml="X:\Пол\500.020.001.00 - Пол\Options.xml"
+		  PathModel="X:\500.07.01.00.00 - Створка ДК (Emay)\500.07.01.00.00_H_W_M СБ - Створка.a3d"
+		  PathImage="X:\500.07.01.00.00 - Створка ДК (Emay)\Схема.JPG"
+		  PathXml="X:\500.07.01.00.00 - Створка ДК (Emay)\Options.xml"
 	  />
 	  <Row
 		  Name="Никакой"
@@ -46,4 +46,8 @@
 		<Row Name="Без стоек" />
 	</Group>
   <Group Name='Передняя стенка' />
+  <Group Name='Навесное оборудование'>
+    <Row Name="Привод Emay" />
+    <Row Name="Привод ProLift" />
+  </Group>
 </Finishing>

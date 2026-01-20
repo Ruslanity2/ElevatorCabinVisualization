@@ -106,17 +106,17 @@ namespace ElevatorCabinVisualization
         {
             InitializeComponent();
             this.Text = "Кабина лифта";
-            this.Size = new Size(730, 700);
+            this.Size = new Size(730, 730);
             this.BackColor = Color.FromArgb(40, 50, 70);
             this.DoubleBuffered = true;
 
             LoadFinishingData();
             LoadParamsData();
-            InitializeCabinPoints();
             InitializeStatusStrip();
             InitializeMarksPanel();
             InitializeParametersPanel();
             InitializeControls();
+            InitializeCabinPoints(); // Должен быть после InitializeParametersPanel, чтобы numHeight/numWidth/numDepth были инициализированы
             InitializeExportButton();
             InitializeCloseButton();
 
@@ -260,6 +260,17 @@ namespace ElevatorCabinVisualization
             cmbBackWall = CreateComboBox(yPos, "Передняя стенка");
             controlPanel.Controls.Add(cmbBackWall);
             controlPanel.Controls.Add(CreateSettingsButton(yPos, "Передняя стенка", cmbBackWall));
+            yPos += spacing;
+
+            // Навесное оборудование (без управления видимостью на изометрии)
+            CheckBox chkEquipment = CreateToggleCheckBox("", yPos, Color.FromArgb(180, 200, 180, 160));
+            chkEquipment.Checked = false;
+            chkEquipment.Enabled = false; // Заблокирован, так как пока нечего скрывать/показывать
+            controlPanel.Controls.Add(chkEquipment);
+            UpdateEyeIcon(chkEquipment);
+            ComboBox cmbEquipment = CreateComboBox(yPos, "Навесное оборудование");
+            controlPanel.Controls.Add(cmbEquipment);
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Навесное оборудование", cmbEquipment));
             yPos += spacing;
 
             // Подгоняем высоту GroupBox под количество контролов
@@ -972,7 +983,7 @@ namespace ElevatorCabinVisualization
         {
             // Реальные размеры кабины в мм
             double widthReal = (double)(numWidth?.Value ?? 1100);   // Ширина - слева направо
-            double depthReal = (double)(numDepth?.Value ?? 1100);   // Глубина - спереди назад
+            double depthReal = (double)(numDepth?.Value ?? 800);    // Глубина - спереди назад
             double heightReal = (double)(numHeight?.Value ?? 2100); // Высота
 
             // Коэффициент масштабирования для отображения на форме
@@ -1120,7 +1131,7 @@ namespace ElevatorCabinVisualization
 
             // Вычисляем коэффициент масштабирования (тот же, что для кабины)
             double widthReal = (double)(numWidth?.Value ?? 1100);
-            double depthReal = (double)(numDepth?.Value ?? 1100);
+            double depthReal = (double)(numDepth?.Value ?? 800);
             double heightReal = (double)(numHeight?.Value ?? 2100);
 
             double availableWidth = 480;
