@@ -700,6 +700,7 @@ namespace ElevatorCabinVisualization
             KompasExporter kompasExporter = new KompasExporter();
             kompasExporter.ExportPath = txtExportPath.Text;
             kompasExporter.ProcessReportParts();
+            kompasExporter.CreateEmptyAssembly();
 
             lblStatus.Text = $"Выгрузка выполнена успешно в: {txtExportPath.Text}";
         }

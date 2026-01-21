@@ -27,6 +27,7 @@ namespace ElevatorCabinVisualization
         private readonly KompasRestartService kompasRestartService;
         Dictionary<string, string> dictionaryofreplacements;
         Dictionary<string, double> dictionaryvariables;
+        private string reportFilePath;
 
         /// <summary>
         /// Объект отчета, загруженный из XML
@@ -64,12 +65,12 @@ namespace ElevatorCabinVisualization
             }
 
             // Находим самый последний файл по дате создания
-            string latestReportFile = xmlFiles
+            reportFilePath = xmlFiles
                 .OrderByDescending(f => File.GetCreationTime(f))
                 .First();
 
             // Десериализуем XML-файл в объект Report
-            Report = Report.Load(latestReportFile);
+            Report = Report.Load(reportFilePath);
         }
 
         /// <summary>
@@ -131,6 +132,17 @@ namespace ElevatorCabinVisualization
             {
                 ProcessPart(part);
             }
+
+            // Сохраняем обновлённый Report обратно в XML
+            SaveUpdatedReport();
+        }
+
+        /// <summary>
+        /// Сохраняет обновлённый Report с NewPathModel обратно в XML
+        /// </summary>
+        private void SaveUpdatedReport()
+        {
+            Report.Save(reportFilePath);
         }
 
         /// <summary>
@@ -338,6 +350,8 @@ namespace ElevatorCabinVisualization
                         //RenameTreeNodes(root, dictionaryofreplacements); не нужно больше
                         //4.проходимся по виртуальной структуре начиная со всех деталей
                         TraverseTree(root);
+                        //5.сохраняем новый путь к модели в ReportPart
+                        part.NewPathModel = root.NewFullName;
                         break;
                     }
                 case Kompas6Constants.DocumentTypeEnum.ksDocumentTextual:
@@ -975,6 +989,120 @@ namespace ElevatorCabinVisualization
                 MessageBox.Show($"Ошибка при обработке узла '{node.Name}': {ex.Message}",
                     "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>
+        /// Создаёт новую пустую сборку в KOMPAS-3D с заданным обозначением и наименованием
+        /// </summary>
+        /// <returns>Путь к созданному файлу сборки или null в случае ошибки</returns>
+        public string CreateEmptyAssembly()
+        {
+            // 1. Получить значение Mark.Value (номер заказа) из Report
+            string markValue = GetOrderNumber();
+            if (string.IsNullOrEmpty(markValue))
+            {
+                MessageBox.Show("Не удалось получить номер заказа из Report",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return null;
+            }
+
+            // 2. Сформировать имя файла по маске
+            string designation = $"500.00.00_{markValue}";
+            string name = "Купе";
+            string fileName = $"{designation} - {name}.a3d";
+            string filePath = Path.Combine(ExportPath, fileName);
+
+            // 3. Подключиться к KOMPAS (если ещё не подключены)
+            if (kompas == null)
+            {
+                kompas = kompasRestartService.GetKompasInstance();
+                if (kompas == null)
+                {
+                    MessageBox.Show("Не удалось подключиться к KOMPAS-3D",
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return null;
+                }
+                application = kompas.ksGetApplication7();
+                documents = application.Documents;
+            }
+
+            try
+            {
+                // 4. Создать новый документ-сборку
+                IKompasDocument3D newAssembly = (IKompasDocument3D)documents.Add(
+                    Kompas6Constants.DocumentTypeEnum.ksDocumentAssembly, true);
+
+                if (newAssembly == null)
+                {
+                    MessageBox.Show("Не удалось создать новую сборку",
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return null;
+                }
+
+                // 5. Задать обозначение и наименование через ksPart
+                IPart7 part7 = newAssembly.TopPart;
+                ksPart topPart = kompas.TransferInterface(part7, 1, 0);
+                topPart.marking = designation;  // Обозначение
+                topPart.name = name;            // Наименование
+                topPart.Update();
+
+                // 6. Добавить компоненты из Report.Parts
+                IParts7 parts = part7.Parts;
+                foreach (var reportPart in Report.Parts)
+                {
+                    if (!string.IsNullOrEmpty(reportPart.NewPathModel) && File.Exists(reportPart.NewPathModel))
+                    {
+                        // Добавляем компонент из файла
+                        IPart7 insertedPart = parts.AddFromFile(reportPart.NewPathModel, true, false);
+
+                        if (insertedPart != null)
+                        {
+                            // Устанавливаем положение компонента (0, 0, 0)
+                            Placement3D placement3D = insertedPart.Placement;
+                            placement3D.SetOrigin(0, 0, 0);
+                            insertedPart.UpdatePlacement(true);
+                            insertedPart.Fixed = true;
+                            IModelObject modelObject = (IModelObject)insertedPart;
+                            modelObject.Update();
+                        }
+                    }
+                }
+
+                // 7. Перестраиваем и сохраняем сборку
+                newAssembly.RebuildDocument();
+                newAssembly.SaveAs(filePath);
+
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при создании сборки: {ex.Message}",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Получает номер заказа (Mark.Value с mark="Number") из первого part в Report
+        /// </summary>
+        private string GetOrderNumber()
+        {
+            if (Report?.Parts == null || Report.Parts.Count == 0)
+                return null;
+
+            // Ищем Mark с mark="Number" в любом part
+            foreach (var part in Report.Parts)
+            {
+                if (part.Marks != null)
+                {
+                    var orderMark = part.Marks.Find(m => m.Mark == "Number");
+                    if (orderMark != null && !string.IsNullOrEmpty(orderMark.Value))
+                    {
+                        return orderMark.Value;
+                    }
+                }
+            }
+            return null;
         }
     }
 }

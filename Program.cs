@@ -10,7 +10,15 @@ namespace ElevatorCabinVisualization
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+
+            if (LicenseValidator.IsValid(out string errorMessage))
+            {
+                Application.Run(new MainForm());
+            }
+            else
+            {
+                MessageBox.Show(errorMessage, "Ошибка лицензии", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

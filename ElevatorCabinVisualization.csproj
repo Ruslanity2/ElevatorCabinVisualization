@@ -67,6 +67,7 @@
     <Compile Include="Data\ObjectAssemblyKompas.cs" />
     <Compile Include="Kompas\KompasExporter.cs" />
     <Compile Include="Kompas\KompasRestartService.cs" />
+    <Compile Include="Licensing\LicenseValidator.cs" />
     <Compile Include="Settings\Finishing.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>

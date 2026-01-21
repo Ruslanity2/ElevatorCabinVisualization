@@ -48,13 +48,16 @@ namespace ElevatorCabinVisualization
         }
     }
 
-    public class ReportPart
+    public class ReportPart //класс всего отчета
     {
         [XmlAttribute("Group")]
         public string Group { get; set; }
 
         [XmlAttribute("PathModel")]
         public string PathModel { get; set; }
+
+        [XmlAttribute("NewPathModel")]
+        public string NewPathModel { get; set; }
 
         [XmlElement("Mark")]
         public List<ReportMark> Marks { get; set; } = new List<ReportMark>();
@@ -66,7 +69,7 @@ namespace ElevatorCabinVisualization
         public List<ReportOptionGroup> OptionGroups { get; set; } = new List<ReportOptionGroup>();
     }
 
-    public class ReportMark
+    public class ReportMark //класс тега группы Mark
     {
         [XmlAttribute("name")]
         public string Name { get; set; }
@@ -78,7 +81,7 @@ namespace ElevatorCabinVisualization
         public string Value { get; set; }
     }
 
-    public class ReportDimension
+    public class ReportDimension //класс тега группы Dimension
     {
         [XmlAttribute("name")]
         public string Name { get; set; }
@@ -90,7 +93,7 @@ namespace ElevatorCabinVisualization
         public string Value { get; set; }
     }
 
-    public class ReportOptionGroup
+    public class ReportOptionGroup //класс тега группы Опций
     {
         [XmlAttribute("name")]
         public string Name { get; set; }
