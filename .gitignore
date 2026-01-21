@@ -259,3 +259,14 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+nul
+DELETE/Finishing.xml
+DELETE/Form1.cs
+DELETE/Form1.resx
+DELETE/Options.cs
+DELETE/Options.xml
+DELETE/Params.cs
+DELETE/Params.xml
+DELETE/Report.cs
+DELETE/Report.xml
+Licensing/LicenseValidator.cs
