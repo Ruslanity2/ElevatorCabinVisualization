@@ -22,6 +22,16 @@ namespace ElevatorCabinVisualization
         public List<string> DrawingReferences { get; set; }
         public string NewDrawingName { get; set; }
 
+        // Расположение в сборке (X, Y, Z из IPlacement3D.GetOrigin)
+        public double[] Origin { get; set; }
+
+        // Ориентация в сборке (NutationAngle, PrecessionAngle, RotationAngle из ILocalCSEulerParam)
+        public double[] EulerAngles { get; set; }
+
+        // Флаги свойств из KOMPAS
+        public bool NeedsRework { get; set; }
+        public bool ModifierFastener { get; set; }
+
         // Связи в дереве
         public ObjectAssemblyKompas Parent { get; set; }
         public List<ObjectAssemblyKompas> Children { get; private set; }

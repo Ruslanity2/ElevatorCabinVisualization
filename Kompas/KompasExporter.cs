@@ -40,6 +40,16 @@ namespace ElevatorCabinVisualization
         public string ExportPath { get; set; }
 
         /// <summary>
+        /// Список деталей, требующих доработки (свойство NeedsRework = true)
+        /// </summary>
+        public List<ObjectAssemblyKompas> NeedsReworkParts { get; private set; } = new List<ObjectAssemblyKompas>();
+
+        /// <summary>
+        /// Список деталей-крепежа (свойство ModifierFastener = true)
+        /// </summary>
+        public List<ObjectAssemblyKompas> ModifierFastenerParts { get; private set; } = new List<ObjectAssemblyKompas>();
+
+        /// <summary>
         /// Конструктор класса KompasExporter
         /// Загружает самый последний Report.xml из папки Reports
         /// </summary>
@@ -1104,5 +1114,216 @@ namespace ElevatorCabinVisualization
             }
             return null;
         }
+
+        // Цвета-маркеры для определения свойств деталей (BGR формат)
+        private const int ColorNeedsRework = 0x0000FF;       // Красный
+        private const int ColorModifierFastener = 0x00FF00;  // Зелёный
+
+        /// <summary>
+        /// Сканирует открытую сборку и заполняет списки деталей с особыми свойствами.
+        /// Определяет свойства по цвету детали через IColorParam7 (без открытия документов).
+        /// </summary>
+        public void ScanAssemblyForSpecialParts()
+        {
+            NeedsReworkParts.Clear();
+            ModifierFastenerParts.Clear();
+
+            if (kompas == null)
+            {
+                kompas = kompasRestartService.GetKompasInstance();
+                if (kompas == null)
+                {
+                    MessageBox.Show("Не удалось подключиться к KOMPAS-3D",
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                application = kompas.ksGetApplication7();
+                documents = application.Documents;
+            }
+
+            IKompasDocument3D activeDoc = (IKompasDocument3D)application.ActiveDocument;
+            if (activeDoc == null || activeDoc.DocumentType != Kompas6Constants.DocumentTypeEnum.ksDocumentAssembly)
+            {
+                MessageBox.Show("Активный документ не является сборкой",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            IPart7 topPart = activeDoc.TopPart;
+            ScanPartsRecursively(topPart);
+        }
+
+        /// <summary>
+        /// Рекурсивно сканирует компоненты сборки, определяя свойства деталей по их цвету.
+        /// </summary>
+        private void ScanPartsRecursively(IPart7 part)
+        {
+            foreach (IPart7 item in part.Parts)
+            {
+                ksPart ksPart = kompas.TransferInterface(item, 1, 0);
+                if (ksPart.excluded)
+                    continue;
+
+                if (item.Detail)
+                {
+                    var obj = CreateObjectFromPart(item);
+
+                    if (obj.NeedsRework)
+                        NeedsReworkParts.Add(obj);
+
+                    if (obj.ModifierFastener)
+                        ModifierFastenerParts.Add(obj);
+                }
+                else
+                {
+                    ScanPartsRecursively(item);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Создаёт ObjectAssemblyKompas из детали, определяя свойства по цвету через IColorParam7.
+        /// Получает расположение и ориентацию детали в сборке.
+        /// </summary>
+        private ObjectAssemblyKompas CreateObjectFromPart(IPart7 item)
+        {
+            var obj = new ObjectAssemblyKompas
+            {
+                FullName = item.FileName,
+                Designation = item.Marking,
+                Name = item.Name,
+                IsDetail = true
+            };
+
+            // Получаем расположение и ориентацию детали
+            try
+            {
+                IPlacement3D placement3D = (IPlacement3D)item.Placement;
+
+                // Расположение (координаты начала ЛСК)
+                double x, y, z;
+                placement3D.GetOrigin(out x, out y, out z);
+                obj.Origin = new double[] { Math.Round(x, 2), Math.Round(y, 2), Math.Round(z, 2) };
+
+                // Ориентация (углы Эйлера)
+                IAuxiliaryGeomContainer auxiliaryGeomContainer = (IAuxiliaryGeomContainer)item;
+                ILocalCoordinateSystems localCoordinateSystems = auxiliaryGeomContainer.LocalCoordinateSystems;
+                ILocalCoordinateSystem localCoordinateSystem = localCoordinateSystems.LocalCoordinateSystem[0];
+                if (localCoordinateSystem != null)
+                {
+                    localCoordinateSystem.OrientationType = Kompas6Constants3D.ksOrientationTypeEnum.ksEulerCorners;
+                    ILocalCSEulerParam eulerParam = (ILocalCSEulerParam)localCoordinateSystem.LocalCSParameters;
+                    obj.EulerAngles = new double[]
+                    {
+                        eulerParam.NutationAngle,
+                        eulerParam.PrecessionAngle,
+                        eulerParam.RotationAngle
+                    };
+                }
+            }
+            catch (Exception ex) {
+                MessageBox.Show($"Ошибка: {ex.Message}\n\nДетали:\n{ex.ToString()}",
+                        "Ошибка",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+            }
+
+            // Определяем свойства по цвету детали
+            try
+            {
+                IColorParam7 colorParam = (IColorParam7)item;
+                int color = colorParam.Color;
+
+                obj.NeedsRework = (color == ColorNeedsRework);
+                obj.ModifierFastener = (color == ColorModifierFastener);
+            }
+            catch (Exception)
+            {
+                // Если не удалось получить цвет, оставляем false
+            }
+
+            return obj;
+        }
+
+        public void InsertFastenersIntoReworkParts()
+        {
+            if (NeedsReworkParts.Count == 0 || ModifierFastenerParts.Count == 0)
+                return;
+
+            foreach (var reworkPart in NeedsReworkParts)
+            {
+                if (string.IsNullOrEmpty(reworkPart.FullName))
+                    continue;
+
+                try
+                {
+                    IKompasDocument3D partDoc = (IKompasDocument3D)documents.Open(reworkPart.FullName, true, false);
+                    if (partDoc == null)
+                        continue;
+
+                    try
+                    {
+                        IPart7 topPart = partDoc.TopPart;
+                        ksPart ksTopPart = kompas.TransferInterface(topPart, 1, 0);
+
+                        foreach (var fastener in ModifierFastenerParts)
+                        {
+                            if (string.IsNullOrEmpty(fastener.FullName))
+                                continue;
+
+                            ksTopPart.PutStorage(fastener.FullName, 0, false);
+
+                            // Получаем последний вставленный компонент
+                            IPart7 insertedPart = null;
+                            foreach (IPart7 p in topPart.Parts)
+                            {
+                                insertedPart = p;
+                            }
+
+                            if (insertedPart == null)
+                                continue;
+
+                            // Устанавливаем расположение
+                            if (fastener.Origin != null)
+                            {
+                                IPlacement3D placement3D = (IPlacement3D)insertedPart.Placement;
+                                placement3D.SetOrigin(fastener.Origin[0], fastener.Origin[1], fastener.Origin[2]);
+                            }
+
+                            // Устанавливаем ориентацию
+                            if (fastener.EulerAngles != null)
+                            {
+                                IAuxiliaryGeomContainer auxContainer = (IAuxiliaryGeomContainer)insertedPart;
+                                ILocalCoordinateSystems localCSSystems = auxContainer.LocalCoordinateSystems;
+                                ILocalCoordinateSystem localCS = localCSSystems.LocalCoordinateSystem[0];
+                                if (localCS != null)
+                                {
+                                    localCS.OrientationType = Kompas6Constants3D.ksOrientationTypeEnum.ksEulerCorners;
+                                    ILocalCSEulerParam eulerParam = (ILocalCSEulerParam)localCS.LocalCSParameters;
+                                    eulerParam.NutationAngle = fastener.EulerAngles[0];
+                                    eulerParam.PrecessionAngle = fastener.EulerAngles[1];
+                                    eulerParam.RotationAngle = fastener.EulerAngles[2];
+                                }
+                            }
+
+                            insertedPart.UpdatePlacement(true);
+                        }
+
+                        partDoc.RebuildDocument();
+                        partDoc.Save();
+                    }
+                    finally
+                    {
+                        partDoc.Close(DocumentCloseOptions.kdDoNotSaveChanges);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Ошибка при вставке крепежа в деталь '{reworkPart.Name}': {ex.Message}",
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+                
     }
 }
