@@ -22,6 +22,7 @@ namespace ElevatorCabinVisualization
         private bool showRightWall = true;
         private bool showFrontWall = true;
         private bool showBackWall = true;
+        private bool showEquipment = true;
 
         // Точки для изометрической проекции
         private Point[] ceilingPoints;
@@ -30,6 +31,11 @@ namespace ElevatorCabinVisualization
         private Point[] rightWallPoints;
         private Point[] frontWallPoints;
         private Point[] backWallPoints;
+        private Point[] apronPoints;              // Фартук (под дверью)
+        private Point[] ceilingEquipTopPoints;    // Оборудование на потолке - верхняя грань
+        private Point[] ceilingEquipFrontPoints;  // Оборудование на потолке - передняя грань
+        private Point[] ceilingEquipRightPoints;  // Оборудование на потолке - правая грань
+        private Point[] ceilingEquipLeftPoints;   // Оборудование на потолке - левая грань
 
         // Цвета для частей
         private Color ceilingColor = Color.FromArgb(180, 200, 220, 240);
@@ -38,6 +44,8 @@ namespace ElevatorCabinVisualization
         private Color rightWallColor = Color.FromArgb(180, 160, 180, 200);
         private Color frontWallColor = Color.FromArgb(180, 220, 230, 240);
         private Color backWallColor = Color.FromArgb(180, 140, 160, 180);
+        private Color apronColor = Color.FromArgb(200, 220, 220, 220);         // Светло-серый фартук
+        private Color ceilingEquipColor = Color.FromArgb(240, 240, 240, 240);  // Серый блок на потолке
 
         // CheckBox для управления видимостью
         private CheckBox chkCeiling;
@@ -46,6 +54,7 @@ namespace ElevatorCabinVisualization
         private CheckBox chkRightWall;
         private CheckBox chkFrontWall;
         private CheckBox chkBackWall;
+        private CheckBox chkEquipment;
 
         // ComboBox для каждого элемента
         private ComboBox cmbCeiling;
@@ -262,10 +271,10 @@ namespace ElevatorCabinVisualization
             controlPanel.Controls.Add(CreateSettingsButton(yPos, "Передняя стенка", cmbBackWall));
             yPos += spacing;
 
-            // Навесное оборудование (без управления видимостью на изометрии)
-            CheckBox chkEquipment = CreateToggleCheckBox("", yPos, Color.FromArgb(180, 200, 180, 160));
-            chkEquipment.Checked = false;
-            chkEquipment.Enabled = false; // Заблокирован, так как пока нечего скрывать/показывать
+            // Навесное оборудование (фартук и блок на потолке)
+            chkEquipment = CreateToggleCheckBox("", yPos, Color.FromArgb(180, 200, 180, 160));
+            chkEquipment.Checked = showEquipment;
+            chkEquipment.CheckedChanged += (s, e) => { showEquipment = chkEquipment.Checked; UpdateEyeIcon(chkEquipment); this.Invalidate(); };
             controlPanel.Controls.Add(chkEquipment);
             UpdateEyeIcon(chkEquipment);
             ComboBox cmbEquipment = CreateComboBox(yPos, "Навесное оборудование");
@@ -450,8 +459,9 @@ namespace ElevatorCabinVisualization
                     numeric.Increment = (decimal)param.Inc;
 
                     // Определяем, нужно ли перерисовывать кабину при изменении этого параметра
-                    // Параметры, влияющие на геометрию кабины
-                    if (param.Name == "Высота" || param.Name == "Ширина" || param.Name == "Глубина" || param.Name == "Положение каркаса")
+                    // Параметры, влияющие на геометрию кабины и навесного оборудования
+                    if (param.Name == "Высота" || param.Name == "Ширина" || param.Name == "Глубина" ||
+                        param.Name == "Положение каркаса" || param.Name == "Ширина проема" || param.Name == "Заплечик")
                     {
                         numeric.ValueChanged += (s, e) => { InitializeCabinPoints(); this.Invalidate(); };
                     }
@@ -1125,6 +1135,52 @@ namespace ElevatorCabinVisualization
 
             // Правая стена (X = +halfW)
             rightWallPoints = new Point[] { p3, p2, p6, p7 };
+
+            // === Навесное оборудование ===
+
+            // Фартук (панель под дверью, выступающая вниз)
+            double doorWidthReal = (double)(numDoorWidth?.Value ?? 800);
+            double doorMarginReal = (double)(numDoorMargin?.Value ?? 150);
+            double apronHeight = 400; // Высота фартука вниз от пола
+
+            double doorLeftX = -halfW + doorMarginReal;
+            double doorRightX = doorLeftX + doorWidthReal;
+            double doorZ = halfD; // Задняя стена
+
+            Point apronTopLeft = Project3D(doorLeftX, 0, doorZ, rotY, rotX, scale, centerX, centerY);
+            Point apronTopRight = Project3D(doorRightX, 0, doorZ, rotY, rotX, scale, centerX, centerY);
+            Point apronBottomRight = Project3D(doorRightX, -apronHeight, doorZ, rotY, rotX, scale, centerX, centerY);
+            Point apronBottomLeft = Project3D(doorLeftX, -apronHeight, doorZ, rotY, rotX, scale, centerX, centerY);
+
+            apronPoints = new Point[] { apronTopLeft, apronTopRight, apronBottomRight, apronBottomLeft };
+
+            // Оборудование на потолке (3D-блок по центру)
+            double equipWidth = 400;   // Ширина блока (по X)
+            double equipDepth = 300;   // Глубина блока (по Z)
+            double equipHeight = 150;  // Высота блока (по Y, вверх от потолка)
+
+            // Центрируем блок на потолке
+            double equipHalfW = equipWidth / 2;
+            double equipHalfD = equipDepth / 2;
+            double equipBaseY = heightReal;        // Основание на уровне потолка
+            double equipTopY = heightReal + equipHeight; // Верх блока
+
+            // 8 вершин блока оборудования
+            Point eqBL = Project3D(-equipHalfW, equipBaseY, -equipHalfD, rotY, rotX, scale, centerX, centerY); // Передний левый нижний
+            Point eqBR = Project3D(equipHalfW, equipBaseY, -equipHalfD, rotY, rotX, scale, centerX, centerY);  // Передний правый нижний
+            Point eqBRb = Project3D(equipHalfW, equipBaseY, equipHalfD, rotY, rotX, scale, centerX, centerY);  // Задний правый нижний
+            Point eqBLb = Project3D(-equipHalfW, equipBaseY, equipHalfD, rotY, rotX, scale, centerX, centerY); // Задний левый нижний
+
+            Point eqTL = Project3D(-equipHalfW, equipTopY, -equipHalfD, rotY, rotX, scale, centerX, centerY);  // Передний левый верхний
+            Point eqTR = Project3D(equipHalfW, equipTopY, -equipHalfD, rotY, rotX, scale, centerX, centerY);   // Передний правый верхний
+            Point eqTRb = Project3D(equipHalfW, equipTopY, equipHalfD, rotY, rotX, scale, centerX, centerY);   // Задний правый верхний
+            Point eqTLb = Project3D(-equipHalfW, equipTopY, equipHalfD, rotY, rotX, scale, centerX, centerY);  // Задний левый верхний
+
+            // Видимые грани блока (при текущем угле обзора)
+            ceilingEquipTopPoints = new Point[] { eqTL, eqTLb, eqTRb, eqTR };     // Верхняя грань
+            ceilingEquipFrontPoints = new Point[] { eqBL, eqBR, eqTR, eqTL };     // Передняя грань
+            ceilingEquipRightPoints = new Point[] { eqBR, eqBRb, eqTRb, eqTR };   // Правая грань
+            ceilingEquipLeftPoints = new Point[] { eqBL, eqBLb, eqTLb, eqTL };    // Левая грань
         }
 
         private void Form1_Paint(object sender, PaintEventArgs e)
@@ -1138,9 +1194,17 @@ namespace ElevatorCabinVisualization
             if (showBackWall)
                 DrawBackWallWithDoor(g);
 
+            // Фартук (под дверью) - рисуется вместе с задней стеной
+            if (showEquipment && apronPoints != null)
+                DrawApron(g);
+
             // Потолок
             if (showCeiling)
                 DrawPart(g, ceilingPoints, ceilingColor);
+
+            // Оборудование на потолке - рисуется после потолка
+            if (showEquipment && ceilingEquipTopPoints != null)
+                DrawCeilingEquipment(g);
 
             // Левая стена (задняя левая)
             if (showLeftWall)
@@ -1287,6 +1351,59 @@ namespace ElevatorCabinVisualization
             using (Pen pen = new Pen(Color.White, 2))
             {
                 g.DrawPolygon(pen, backWallPoints);
+            }
+        }
+
+        private void DrawApron(Graphics g)
+        {
+            // Фартук - светло-серая панель под дверью
+            using (SolidBrush brush = new SolidBrush(apronColor))
+            {
+                g.FillPolygon(brush, apronPoints);
+            }
+
+            using (Pen pen = new Pen(Color.Gray, 1))
+            {
+                g.DrawPolygon(pen, apronPoints);
+            }
+        }
+
+        private void DrawCeilingEquipment(Graphics g)
+        {
+            // Рисуем 3D-блок оборудования на потолке
+            // Порядок отрисовки: задние грани -> передние грани
+
+            // Левая грань
+            using (SolidBrush leftBrush = new SolidBrush(Color.FromArgb(240, 240, 240, 240)))
+            {
+                g.FillPolygon(leftBrush, ceilingEquipLeftPoints);
+            }
+
+            // Верхняя грань
+            using (SolidBrush topBrush = new SolidBrush(Color.FromArgb(240, 240, 240, 240)))
+            {
+                g.FillPolygon(topBrush, ceilingEquipTopPoints);
+            }
+
+            // Правая грань
+            using (SolidBrush rightBrush = new SolidBrush(Color.FromArgb(240, 240, 240, 240)))
+            {
+                g.FillPolygon(rightBrush, ceilingEquipRightPoints);
+            }
+
+            // Передняя грань
+            using (SolidBrush frontBrush = new SolidBrush(Color.FromArgb(240, 240, 240, 240)))
+            {
+                g.FillPolygon(frontBrush, ceilingEquipFrontPoints);
+            }
+
+            // Обводка всех граней
+            using (Pen pen = new Pen(Color.DarkGray, 1))
+            {
+                g.DrawPolygon(pen, ceilingEquipLeftPoints);
+                g.DrawPolygon(pen, ceilingEquipTopPoints);
+                g.DrawPolygon(pen, ceilingEquipRightPoints);
+                g.DrawPolygon(pen, ceilingEquipFrontPoints);
             }
         }
     }
