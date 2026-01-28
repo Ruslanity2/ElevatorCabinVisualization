@@ -9,6 +9,7 @@ using System.Threading;
 using System.Windows.Forms;
 using Kompas6API5;
 using Kompas6Constants;
+using Kompas6Constants3D;
 using KompasAPI7;
 
 namespace ElevatorCabinVisualization
@@ -421,7 +422,8 @@ namespace ElevatorCabinVisualization
 
             foreach (var item in keyValuePairs)
             {
-                IVariable7 variableDim = feature7.Variable[false, true, item.Key]; //Передал dimension из xml в модель
+                IVariable7 variableDim = feature7.Variable[false, true, item.Key]; //П
+
                 if (variableDim != null)
                 {
                     variableDim.Value = Convert.ToDouble(item.Value); //Передал в модель значение поля NumericUpDown с формы в модель
@@ -1195,34 +1197,22 @@ namespace ElevatorCabinVisualization
                 IsDetail = true
             };
 
-            // Получаем расположение и ориентацию детали
+            // Получаем матрицу трансформации (содержит и расположение, и ориентацию)
             try
             {
                 IPlacement3D placement3D = (IPlacement3D)item.Placement;
 
-                // Расположение (координаты начала ЛСК)
-                double x, y, z;
-                placement3D.GetOrigin(out x, out y, out z);
-                obj.Origin = new double[] { Math.Round(x, 2), Math.Round(y, 2), Math.Round(z, 2) };
-
-                // Ориентация (углы Эйлера)
-                IAuxiliaryGeomContainer auxiliaryGeomContainer = (IAuxiliaryGeomContainer)item;
-                ILocalCoordinateSystems localCoordinateSystems = auxiliaryGeomContainer.LocalCoordinateSystems;
-                ILocalCoordinateSystem localCoordinateSystem = localCoordinateSystems.LocalCoordinateSystem[0];
-                if (localCoordinateSystem != null)
+                // Получаем матрицу трансформации 4x4 через GetMatrix3D
+                object matrixObj = placement3D.GetMatrix3D();
+                if (matrixObj != null)
                 {
-                    localCoordinateSystem.OrientationType = Kompas6Constants3D.ksOrientationTypeEnum.ksEulerCorners;
-                    ILocalCSEulerParam eulerParam = (ILocalCSEulerParam)localCoordinateSystem.LocalCSParameters;
-                    obj.EulerAngles = new double[]
-                    {
-                        eulerParam.NutationAngle,
-                        eulerParam.PrecessionAngle,
-                        eulerParam.RotationAngle
-                    };
+                    double[] matrix = (double[])matrixObj;
+                    obj.TransformMatrix = matrix;
                 }
             }
-            catch (Exception ex) {
-                MessageBox.Show($"Ошибка: {ex.Message}\n\nДетали:\n{ex.ToString()}",
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при получении матрицы трансформации: {ex.Message}",
                         "Ошибка",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
@@ -1245,85 +1235,312 @@ namespace ElevatorCabinVisualization
             return obj;
         }
 
+        /// <summary>
+        /// Вставляет геометрию крепежа в детали, требующие доработки
+        /// </summary>
         public void InsertFastenersIntoReworkParts()
         {
             if (NeedsReworkParts.Count == 0 || ModifierFastenerParts.Count == 0)
                 return;
+
+            // Кэш обработанных деталей по пути
+            HashSet<string> processedParts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var reworkPart in NeedsReworkParts)
             {
                 if (string.IsNullOrEmpty(reworkPart.FullName))
                     continue;
 
-                try
+                if (processedParts.Contains(reworkPart.FullName))
+                    continue;
+                processedParts.Add(reworkPart.FullName);
+
+                // Открываем документ детали через API7
+                IKompasDocument3D partDoc = (IKompasDocument3D)documents.Open(
+                    reworkPart.FullName, true, false);
+                if (partDoc == null)
+                    continue;
+
+                IPart7 topPart = partDoc.TopPart;
+                if (topPart == null)
+                    continue;
+
+                IParts7 parts = topPart.Parts;
+                if (parts == null)
+                    continue;
+
+                // Список для хранения всех вставленных деталей-инструментов
+                List<IPart7> insertedTools = new List<IPart7>();
+
+                // Сначала добавляем все детали из ModifierFastenerParts
+                foreach (var fastener in ModifierFastenerParts)
                 {
-                    IKompasDocument3D partDoc = (IKompasDocument3D)documents.Open(reworkPart.FullName, true, false);
-                    if (partDoc == null)
+                    if (string.IsNullOrEmpty(fastener.FullName))
                         continue;
 
-                    try
+                    // Вставляем крепёж
+                    IPart7 insertedPart = parts.AddFromFile(fastener.FullName, true, false);
+                    if (insertedPart == null)
+                        continue;
+
+                    // Устанавливаем положение через матрицу трансформации
+                    if (fastener.TransformMatrix != null)
                     {
-                        IPart7 topPart = partDoc.TopPart;
-                        ksPart ksTopPart = kompas.TransferInterface(topPart, 1, 0);
-
-                        foreach (var fastener in ModifierFastenerParts)
+                        IPlacement3D placement = (IPlacement3D)insertedPart.Placement;
+                        if (placement != null)
                         {
-                            if (string.IsNullOrEmpty(fastener.FullName))
-                                continue;
-
-                            ksTopPart.PutStorage(fastener.FullName, 0, false);
-
-                            // Получаем последний вставленный компонент
-                            IPart7 insertedPart = null;
-                            foreach (IPart7 p in topPart.Parts)
-                            {
-                                insertedPart = p;
-                            }
-
-                            if (insertedPart == null)
-                                continue;
-
-                            // Устанавливаем расположение
-                            if (fastener.Origin != null)
-                            {
-                                IPlacement3D placement3D = (IPlacement3D)insertedPart.Placement;
-                                placement3D.SetOrigin(fastener.Origin[0], fastener.Origin[1], fastener.Origin[2]);
-                            }
-
-                            // Устанавливаем ориентацию
-                            if (fastener.EulerAngles != null)
-                            {
-                                IAuxiliaryGeomContainer auxContainer = (IAuxiliaryGeomContainer)insertedPart;
-                                ILocalCoordinateSystems localCSSystems = auxContainer.LocalCoordinateSystems;
-                                ILocalCoordinateSystem localCS = localCSSystems.LocalCoordinateSystem[0];
-                                if (localCS != null)
-                                {
-                                    localCS.OrientationType = Kompas6Constants3D.ksOrientationTypeEnum.ksEulerCorners;
-                                    ILocalCSEulerParam eulerParam = (ILocalCSEulerParam)localCS.LocalCSParameters;
-                                    eulerParam.NutationAngle = fastener.EulerAngles[0];
-                                    eulerParam.PrecessionAngle = fastener.EulerAngles[1];
-                                    eulerParam.RotationAngle = fastener.EulerAngles[2];
-                                }
-                            }
-
+                            placement.InitByMatrix3D(fastener.TransformMatrix);
                             insertedPart.UpdatePlacement(true);
                         }
+                    }
 
-                        partDoc.RebuildDocument();
-                        partDoc.Save();
-                    }
-                    finally
-                    {
-                        partDoc.Close(DocumentCloseOptions.kdDoNotSaveChanges);
-                    }
+                    IModelObject modelObj = (IModelObject)insertedPart;
+                    modelObj.Update();
+
+                    // Добавляем в список для последующей булевой операции
+                    insertedTools.Add(insertedPart);
                 }
-                catch (Exception ex)
+
+                // Выполняем одну булеву операцию вычитания со всеми инструментами
+                if (insertedTools.Count > 0)
                 {
-                    MessageBox.Show($"Ошибка при вставке крепежа в деталь '{reworkPart.Name}': {ex.Message}",
-                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    PerformBooleanSubtract(topPart, insertedTools);
                 }
+
+                topPart.RebuildModel(true);
+
+                // Экспорт DXF с проекции "#Развертка"
+                ExportDxfFromUnfold(partDoc, reworkPart);
+
+                IKompasDocument kompasDoc = (IKompasDocument)partDoc;
+                kompasDoc.Save();
             }
         }
-                
+
+        /// <summary>
+        /// Экспортирует DXF с проекции "#Развертка" из открытой модели
+        /// </summary>
+        /// <param name="doc">Открытый документ Kompas 3D</param>
+        /// <param name="node">Узел с информацией о детали</param>
+        private void ExportDxfFromUnfold(IKompasDocument3D doc, ObjectAssemblyKompas node)
+        {
+            if (doc == null || node == null)
+                return;
+
+            application.HideMessage = ksHideMessageEnum.ksHideMessageYes;
+
+            try
+            {
+                ksDocument3D ksDoc3D = kompas.ActiveDocument3D();
+                IPart7 part7 = doc.TopPart;
+
+                // Формируем путь для DXF: та же папка, что и модель, имя файла = обозначение детали
+                string modelDirectory = Path.GetDirectoryName(node.FullName);
+                string designation = !string.IsNullOrEmpty(part7.Marking) ? part7.Marking : Path.GetFileNameWithoutExtension(node.FullName);
+                string dxfFilePath = Path.Combine(modelDirectory, designation + ".dxf");
+
+                // Создаём временный 2D-документ (фрагмент)
+                ksDocumentParam documentParam = (ksDocumentParam)kompas.GetParamStruct(35);
+                documentParam.type = 1;
+                documentParam.Init();
+                ksDocument2D document2D = (ksDocument2D)kompas.Document2D();
+                document2D.ksCreateDocument(documentParam);
+
+                IKompasDocument2D kompasDocument2D = (IKompasDocument2D)application.ActiveDocument;
+                IViewsAndLayersManager viewsAndLayersManager = kompasDocument2D.ViewsAndLayersManager;
+                IViews views = viewsAndLayersManager.Views;
+                IView pView = views.Add(Kompas6Constants.LtViewType.vt_Arbitrary);
+                IAssociationView pAssociationView = pView as IAssociationView;
+
+                pAssociationView.SourceFileName = part7.FileName;
+
+                IEmbodimentsManager embodimentsManager = (IEmbodimentsManager)doc;
+                int indexPart = embodimentsManager.CurrentEmbodimentIndex;
+                IEmbodimentsManager emb = (IEmbodimentsManager)pAssociationView;
+                emb.SetCurrentEmbodiment(indexPart);
+
+                pAssociationView.Angle = 0;
+                pAssociationView.X = 0;
+                pAssociationView.Y = 0;
+                pAssociationView.BendLinesVisible = false;
+                pAssociationView.BreakLinesVisible = false;
+                pAssociationView.HiddenLinesVisible = false;
+                pAssociationView.VisibleLinesStyle = (int)ksCurveStyleEnum.ksCSNormal;
+                pAssociationView.Scale = 1;
+                pAssociationView.Name = "Unfold view";
+                pAssociationView.ProjectionName = "#Развертка";
+                pAssociationView.Unfold = true;
+                pAssociationView.BendLinesVisible = false;
+                pAssociationView.CenterLinesVisible = false;
+                pAssociationView.SourceFileName = part7.FileName;
+                pAssociationView.Update();
+                pView.Update();
+
+                IViewDesignation pViewDesignation = pView as IViewDesignation;
+                pViewDesignation.ShowUnfold = false;
+                pViewDesignation.ShowScale = false;
+                pView.Update();
+
+                document2D.ksRebuildDocument();
+                document2D.ksSaveToDXF(dxfFilePath);
+                document2D.ksCloseDocument();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при экспорте в DXF для '{node.Name}': {ex.Message}",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Выполняет булеву операцию вычитания (Difference) тел крепежа из детали
+        /// </summary>
+        /// <param name="targetPart">Целевая деталь (из которой вычитаем)</param>
+        /// <param name="toolParts">Список тел-инструментов (которые вычитаем)</param>
+        private void PerformBooleanSubtract(IPart7 targetPart, List<IPart7> toolParts)
+        {
+            if (targetPart == null || toolParts == null || toolParts.Count == 0)
+                return;
+
+            try
+            {
+                // Получаем IModelContainer от IPart7
+                IModelContainer modelContainer = (IModelContainer)targetPart;
+                if (modelContainer == null)
+                    return;
+
+                // Получаем коллекцию булевых операций
+                IBooleans booleans = modelContainer.Booleans;
+                if (booleans == null)
+                    return;
+
+                // Добавляем новую булеву операцию
+                IBoolean booleanOp = booleans.Add();
+                if (booleanOp == null)
+                    return;
+
+                // Устанавливаем тип операции - вычитание (Difference)
+                booleanOp.BooleanType = ksBooleanType.ksDifference;
+
+                // Получаем тело базовой детали через IFeature7.ResultBodies
+                IModelObject targetModelObj = (IModelObject)targetPart;
+                IFeature7 targetFeature = (IFeature7)targetModelObj.Owner;
+
+                var targetBodies = targetFeature.ResultBodies;
+                IBody7 targetBody = GetFirstBody(targetBodies);
+                if (targetBody != null)
+                {
+                    booleanOp.BaseObject = targetBody;
+                }
+
+                // Собираем все тела из списка инструментов
+                List<IBody7> allToolBodies = new List<IBody7>();
+                foreach (var toolPart in toolParts)
+                {
+                    IModelObject toolModelObj = (IModelObject)toolPart;
+                    IFeature7 toolFeature = (IFeature7)toolModelObj.Owner;
+                    var toolBodies = toolFeature.ResultBodies;
+
+                    // Добавляем все тела из каждого инструмента
+                    AddAllBodies(toolBodies, allToolBodies);
+                }
+
+                // Устанавливаем все модифицирующие объекты (тела для вычитания)
+                if (allToolBodies.Count > 0)
+                {
+                    booleanOp.ModifyObjects = allToolBodies.ToArray();
+                }
+
+                // Обновляем операцию
+                IModelObject modelObject = (IModelObject)booleanOp;
+                modelObject.Update();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при выполнении булевой операции: {ex.Message}",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Извлекает первое тело из VARIANT (может быть один объект или массив)
+        /// </summary>
+        /// <param name="bodies">VARIANT с телом/телами</param>
+        /// <returns>Первое тело IBody7 или null</returns>
+        private IBody7 GetFirstBody(object bodies)
+        {
+            if (bodies == null)
+                return null;
+
+            try
+            {
+                // Если это массив объектов
+                if (bodies is object[] bodyArray)
+                {
+                    if (bodyArray.Length > 0)
+                        return (IBody7)bodyArray[0];
+                }
+                // Если это Array (SAFEARRAY)
+                else if (bodies is Array array)
+                {
+                    if (array.Length > 0)
+                        return (IBody7)array.GetValue(0);
+                }
+                // Если это один объект (VT_DISPATCH)
+                else
+                {
+                    return (IBody7)bodies;
+                }
+            }
+            catch
+            {
+                // Не удалось привести к IBody7
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Добавляет все тела из VARIANT в список
+        /// </summary>
+        /// <param name="bodies">VARIANT с телом/телами</param>
+        /// <param name="targetList">Список для добавления тел</param>
+        private void AddAllBodies(object bodies, List<IBody7> targetList)
+        {
+            if (bodies == null || targetList == null)
+                return;
+
+            try
+            {
+                // Если это массив объектов
+                if (bodies is object[] bodyArray)
+                {
+                    foreach (var item in bodyArray)
+                    {
+                        if (item is IBody7 body)
+                            targetList.Add(body);
+                    }
+                }
+                // Если это Array (SAFEARRAY)
+                else if (bodies is Array array)
+                {
+                    foreach (var item in array)
+                    {
+                        if (item is IBody7 body)
+                            targetList.Add(body);
+                    }
+                }
+                // Если это один объект (VT_DISPATCH)
+                else if (bodies is IBody7 singleBody)
+                {
+                    targetList.Add(singleBody);
+                }
+            }
+            catch
+            {
+                // Не удалось добавить тела
+            }
+        }
+
     }
 }
