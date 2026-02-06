@@ -417,6 +417,7 @@ namespace ElevatorCabinVisualization
                 return;
 
             IPart7 part7 = doc.TopPart;
+            string name = part7.FileName;
             IModelObject modelObject = (IModelObject)part7;
             IFeature7 feature7 = modelObject.Owner;
 
@@ -462,6 +463,48 @@ namespace ElevatorCabinVisualization
                     }
                     break;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Проверяет, находится ли листовая деталь в развёрнутом состоянии, и сворачивает её
+        /// </summary>
+        /// <param name="doc">Документ Kompas 3D</param>
+        /// <returns>true если деталь была свёрнута, false если не требовалось сворачивание</returns>
+        private bool FoldSheetMetalIfUnfolded(IKompasDocument3D doc)
+        {
+            if (doc == null)
+                return false;
+
+            try
+            {
+                IPart7 part7 = doc.TopPart;
+                string name = part7.Name;
+                if (part7 == null)
+                    return false;
+
+                ISheetMetalContainer sheetMetalContainer = part7 as ISheetMetalContainer;
+                if (sheetMetalContainer == null)
+                    return false;
+
+                ISheetMetalBendUnfoldParameters unfoldParams = sheetMetalContainer as ISheetMetalBendUnfoldParameters;
+                if (unfoldParams == null)
+                    return false;
+
+                if (unfoldParams.Unfold)
+                {
+                    unfoldParams.Unfold = false;
+                    doc.RebuildDocument();
+                    doc.Save();
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                // Деталь не является листовой или произошла ошибка
+                return false;
             }
         }
 
@@ -703,8 +746,23 @@ namespace ElevatorCabinVisualization
                     node.DxfFilePath = dxfFileName;
                 }
 
-                // Обрабатываем PdfFilePath (NewDesignation + .pdf)
-                string pdfFileName = baseFileName + ".pdf";
+                // Определяем базовое имя для PDF и CDW в зависимости от наличия children
+                // Если есть children (сборка) - используем формат "Обозначение СБ - Наименование"
+                // Если нет children (деталь) - используем только NewDesignation
+                bool hasChildren = node.Children != null && node.Children.Count > 0;
+                string drawingBaseFileName;
+
+                if (hasChildren && !string.IsNullOrEmpty(node.NewDesignation) && !string.IsNullOrEmpty(node.NewName))
+                {
+                    drawingBaseFileName = $"{node.NewDesignation} СБ - {node.NewName}";
+                }
+                else
+                {
+                    drawingBaseFileName = baseFileName;
+                }
+
+                // Обрабатываем PdfFilePath
+                string pdfFileName = drawingBaseFileName + ".pdf";
 
                 if (!string.IsNullOrEmpty(ExportPath))
                 {
@@ -715,8 +773,8 @@ namespace ElevatorCabinVisualization
                     node.PdfFilePath = pdfFileName;
                 }
 
-                // Обрабатываем PdfFilePath (NewDesignation + .pdf)
-                string cdwFileName = baseFileName + ".cdw";
+                // Обрабатываем NewDrawingName (cdwFileName)
+                string cdwFileName = drawingBaseFileName + ".cdw";
 
                 if (!string.IsNullOrEmpty(ExportPath))
                 {
@@ -805,6 +863,16 @@ namespace ElevatorCabinVisualization
                 IAssociationView pAssociationView = pView as IAssociationView;
                 IPart7 part7 = doc.TopPart;
                 pAssociationView.SourceFileName = part7.FileName;
+
+                //скрываю оси при создании dxf
+                IAssociationViewElements associationViewElements = (IAssociationViewElements)pAssociationView;
+                associationViewElements.CreateCircularCentres = false;
+                associationViewElements.CreateLinearCentres = false;
+                associationViewElements.CreateAxis = false;
+                associationViewElements.CreateCentresMarkers = false;
+                associationViewElements.ProjectAxis = false;
+                associationViewElements.ProjectDesTexts = false;
+
                 IEmbodimentsManager embodimentsManager = (IEmbodimentsManager)doc;
                 int indexPart = embodimentsManager.CurrentEmbodimentIndex;
                 IEmbodimentsManager emb = (IEmbodimentsManager)pAssociationView;
@@ -851,6 +919,7 @@ namespace ElevatorCabinVisualization
         {
             if (doc == null || node == null || node.DrawingReferences.Count < 1)
                 return;
+
             try
             {
                 IModelObject modelObject = (IModelObject)doc.TopPart;
@@ -861,45 +930,70 @@ namespace ElevatorCabinVisualization
                 {
                     numberDraw = variable7.Value;
                 }
+
                 IDocuments document = application.Documents;
-                IKompasDocument kompasDocument = document.Open(node.DrawingReferences[Convert.ToInt32(numberDraw)], true, true);
+                IKompasDocument kompasDocument = document.Open(
+                    node.DrawingReferences[Convert.ToInt32(numberDraw)], true, true);
+
                 if (kompasDocument == null)
                 {
-                    //IKompasDocument kompasDocument = application.ActiveDocument;
-                    MessageBox.Show($"У детали {kompasDocument.Name} отсутствует привязанный чертеж", "Уведомление", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"У детали {node.Name} отсутствует привязанный чертеж",
+                        "Уведомление", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
                 }
+
                 IKompasDocument2D kompasDocument2D = (IKompasDocument2D)kompasDocument;
                 IViewsAndLayersManager viewsAndLayersManager = kompasDocument2D.ViewsAndLayersManager;
                 IViews views = viewsAndLayersManager.Views;
-
                 IKompasDocument2D1 kompasDocument2D1 = (IKompasDocument2D1)kompasDocument2D;
 
                 List<IView> hideViews = new List<IView>();
+
                 for (int i = 0; i < views.Count; i++)
                 {
                     IView view = views.View[i];
-                    IAssociationView pAssociationView = view as IAssociationView;
-                    if (pAssociationView != null)
-                    {
-                        pAssociationView.SourceFileName = node.NewFullName;
-                        pAssociationView.Update();
-                    }
-                    if (view != null && view.Visible == false)
+                    if (view == null)
+                        continue;
+
+                    // Сначала запоминаем скрытые виды и делаем их видимыми
+                    bool wasHidden = (view.Visible == false);
+                    if (wasHidden)
                     {
                         view.Visible = true;
                         view.Update();
                         hideViews.Add(view);
                     }
+
+                    // Теперь устанавливаем источник
+                    IAssociationView pAssociationView = view as IAssociationView;
+                    if (pAssociationView != null)
+                    {
+                        //pAssociationView.BendLinesStyle = (int)ksCurveStyleEnum.ksCSDashed;                        
+                        pAssociationView.SourceFileName = node.NewFullName;
+                        pAssociationView.Update();
+                        //kompasDocument2D1.RebuildDocument();
+                        //pAssociationView.UseOcclusion = false;
+                        //pAssociationView.Update();
+                        //pAssociationView.UseOcclusion = true;
+                        //pAssociationView.Update();
+                    }
                 }
+
                 kompasDocument2D1.RebuildDocument();
-                for (int i = 0; i < hideViews.Count; i++)
+
+                // Скрываем обратно виды, которые были скрыты
+                foreach (var hideView in hideViews)
                 {
-                    hideViews[i].Visible = false;
-                    hideViews[i].Update();
+                    hideView.Visible = false;
+                    hideView.Update();
                 }
+
                 kompasDocument2D1.RebuildDocument();
+
                 kompasDocument.SaveAs(node.PdfFilePath);
                 kompasDocument.SaveAs(node.NewDrawingName);
+                FoldSheetMetalIfUnfolded(doc);
+
                 kompasDocument.Close(DocumentCloseOptions.kdDoNotSaveChanges);
             }
             catch (Exception ex)
@@ -1314,6 +1408,7 @@ namespace ElevatorCabinVisualization
 
                 IKompasDocument kompasDoc = (IKompasDocument)partDoc;
                 kompasDoc.Save();
+                kompasDoc.Close(DocumentCloseOptions.kdDoNotSaveChanges);
             }
         }
 
@@ -1368,7 +1463,20 @@ namespace ElevatorCabinVisualization
                 pAssociationView.VisibleLinesStyle = (int)ksCurveStyleEnum.ksCSNormal;
                 pAssociationView.Scale = 1;
                 pAssociationView.Name = "Unfold view";
-                pAssociationView.ProjectionName = "#Развертка";
+
+                // Определяем имя проекции на основе маркировки детали
+                string projectionName = "#Развертка";
+                string marking = part7.Marking ?? string.Empty;
+                if (marking.Contains("R"))
+                {
+                    projectionName = "R";
+                }
+                else if (marking.Contains("L"))
+                {
+                    projectionName = "L";
+                }
+                pAssociationView.ProjectionName = projectionName;
+
                 pAssociationView.Unfold = true;
                 pAssociationView.BendLinesVisible = false;
                 pAssociationView.CenterLinesVisible = false;
@@ -1384,6 +1492,7 @@ namespace ElevatorCabinVisualization
                 document2D.ksRebuildDocument();
                 document2D.ksSaveToDXF(dxfFilePath);
                 document2D.ksCloseDocument();
+                FoldSheetMetalIfUnfolded(doc);
             }
             catch (Exception ex)
             {
@@ -1454,6 +1563,39 @@ namespace ElevatorCabinVisualization
                 // Обновляем операцию
                 IModelObject modelObject = (IModelObject)booleanOp;
                 modelObject.Update();
+
+                // Проверяем, не появилась ли ошибка в дереве построения
+                IFeature7 booleanFeature = modelObject.Owner;
+                if (booleanFeature != null)
+                {
+                    // Проверяем код ошибки (0 = нет ошибки)
+                    long errorCode = booleanFeature.ObjectError;
+                    bool isValid = booleanFeature.Valid;
+
+                    if (errorCode != 0 || !isValid)
+                    {
+                        // Погашаем элемент с ошибкой (исключаем из расчёта)
+                        booleanFeature.Excluded = true;
+
+                        // Гасим модифицирующие объекты (детали-инструменты) в дереве
+                        foreach (var toolPart in toolParts)
+                        {
+                            try
+                            {
+                                IModelObject toolModelObj = (IModelObject)toolPart;
+                                IFeature7 toolFeature = toolModelObj.Owner;
+                                if (toolFeature != null)
+                                {
+                                    toolFeature.Excluded = true;
+                                }
+                            }
+                            catch
+                            {
+                                // Не удалось погасить инструмент
+                            }
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {

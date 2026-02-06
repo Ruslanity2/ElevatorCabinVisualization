@@ -2,11 +2,11 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("ElevatorCabinVisualization")]
+[assembly: AssemblyTitle("ELEV8")]
 [assembly: AssemblyDescription("Визуализация кабины лифта")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("ElevatorCabinVisualization")]
+[assembly: AssemblyProduct("ELEV8")]
 [assembly: AssemblyCopyright("Copyright © 2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

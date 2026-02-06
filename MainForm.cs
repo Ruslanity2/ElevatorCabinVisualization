@@ -134,12 +134,14 @@ namespace ElevatorCabinVisualization
 
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             this.SuspendLayout();
             // 
             // MainForm
             // 
             this.ClientSize = new System.Drawing.Size(800, 711);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "MainForm";
@@ -213,7 +215,7 @@ namespace ElevatorCabinVisualization
             UpdateEyeIcon(chkCeiling);
             cmbCeiling = CreateComboBox(yPos, "Потолок");
             controlPanel.Controls.Add(cmbCeiling);
-            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Потолок", cmbCeiling));
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Потолок", cmbCeiling, chkCeiling));
             yPos += spacing;
 
             // Пол
@@ -224,7 +226,7 @@ namespace ElevatorCabinVisualization
             UpdateEyeIcon(chkFloor);
             cmbFloor = CreateComboBox(yPos, "Пол");
             controlPanel.Controls.Add(cmbFloor);
-            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Пол", cmbFloor));
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Пол", cmbFloor, chkFloor));
             yPos += spacing;
 
             // Левая стена
@@ -235,7 +237,7 @@ namespace ElevatorCabinVisualization
             UpdateEyeIcon(chkLeftWall);
             cmbLeftWall = CreateComboBox(yPos, "Левая стенка");
             controlPanel.Controls.Add(cmbLeftWall);
-            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Левая стенка", cmbLeftWall));
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Левая стенка", cmbLeftWall, chkLeftWall));
             yPos += spacing;
 
             // Правая стена
@@ -246,7 +248,7 @@ namespace ElevatorCabinVisualization
             UpdateEyeIcon(chkRightWall);
             cmbRightWall = CreateComboBox(yPos, "Правая стенка");
             controlPanel.Controls.Add(cmbRightWall);
-            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Правая стенка", cmbRightWall));
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Правая стенка", cmbRightWall, chkRightWall));
             yPos += spacing;
 
             // Передняя стена (визуально ближняя к зрителю, в коде называется frontWall)
@@ -257,7 +259,7 @@ namespace ElevatorCabinVisualization
             UpdateEyeIcon(chkFrontWall);
             cmbFrontWall = CreateComboBox(yPos, "Задняя стенка");
             controlPanel.Controls.Add(cmbFrontWall);
-            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Задняя стенка", cmbFrontWall));
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Задняя стенка", cmbFrontWall, chkFrontWall));
             yPos += spacing;
 
             // Задняя стена (визуально дальняя с дверью, в коде backWall)
@@ -268,7 +270,7 @@ namespace ElevatorCabinVisualization
             UpdateEyeIcon(chkBackWall);
             cmbBackWall = CreateComboBox(yPos, "Передняя стенка");
             controlPanel.Controls.Add(cmbBackWall);
-            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Передняя стенка", cmbBackWall));
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Передняя стенка", cmbBackWall, chkBackWall));
             yPos += spacing;
 
             // Навесное оборудование (фартук и блок на потолке)
@@ -279,7 +281,7 @@ namespace ElevatorCabinVisualization
             UpdateEyeIcon(chkEquipment);
             ComboBox cmbEquipment = CreateComboBox(yPos, "Навесное оборудование");
             controlPanel.Controls.Add(cmbEquipment);
-            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Навесное оборудование", cmbEquipment));
+            controlPanel.Controls.Add(CreateSettingsButton(yPos, "Навесное оборудование", cmbEquipment, chkEquipment));
             yPos += spacing;
 
             // Подгоняем высоту GroupBox под количество контролов
@@ -825,7 +827,7 @@ namespace ElevatorCabinVisualization
             chk.Size = new Size(24, 24);
             chk.Appearance = Appearance.Button;
             chk.FlatStyle = FlatStyle.Flat;
-            chk.FlatAppearance.CheckedBackColor = Color.FromArgb(100, 200, 100);
+            chk.FlatAppearance.CheckedBackColor = Color.FromArgb(200, 100, 100);
             chk.FlatAppearance.BorderColor = Color.White;
             chk.FlatAppearance.BorderSize = 1;
             chk.TextAlign = ContentAlignment.MiddleCenter;
@@ -880,7 +882,7 @@ namespace ElevatorCabinVisualization
             return cmb;
         }
 
-        private Button CreateSettingsButton(int yPos, string groupName, ComboBox combo)
+        private Button CreateSettingsButton(int yPos, string groupName, ComboBox combo, CheckBox toggleCheckBox = null)
         {
             Button btn = new Button();
             btn.Location = new Point(214, yPos);
@@ -953,7 +955,10 @@ namespace ElevatorCabinVisualization
 
                 // Открываем форму с переданными параметрами и маркерами
                 CabinDesignTool.CabinDesignForm designForm = new CabinDesignTool.CabinDesignForm(pathXml, pathImage, groupName, pathModel, mainFormValues, mainFormMarkValues);
-                designForm.ShowDialog(this);
+                if (designForm.ShowDialog(this) == DialogResult.OK && toggleCheckBox != null)
+                {
+                    toggleCheckBox.FlatAppearance.CheckedBackColor = Color.FromArgb(100, 200, 100);
+                }
             };
 
             return btn;

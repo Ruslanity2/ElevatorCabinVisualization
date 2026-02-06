@@ -9,8 +9,6 @@ namespace CabinDesignTool
 {
     public partial class CabinDesignForm : Form
     {
-        private double currentHeight = 2000;
-        private double currentWidth = 600;
         private Options options;
         private Dictionary<string, NumericUpDown> dimensionControls = new Dictionary<string, NumericUpDown>();
         private Dictionary<string, ComboBox> optionControls = new Dictionary<string, ComboBox>();
@@ -230,11 +228,6 @@ namespace CabinDesignTool
                     numeric.Enabled = false;
                     numeric.BackColor = Color.LightGray;
                 }
-                else
-                {
-                    // Подписываемся на событие изменения значения только для незаблокированных контролов
-                    numeric.ValueChanged += (sender, e) => OnDimensionValueChanged(dimension.Id, (double)numeric.Value);
-                }
 
                 // Добавляем контролы в GroupBox
                 groupBoxSizes.Controls.Add(label);
@@ -302,9 +295,6 @@ namespace CabinDesignTool
                     combo.SelectedIndex = 0;
                 }
 
-                // Подписываемся на событие изменения значения
-                combo.SelectedIndexChanged += (sender, e) => OnOptionValueChanged(optionGroup.Id, combo.SelectedIndex);
-
                 // Добавляем контролы в GroupBox
                 groupBoxOptions.Controls.Add(label);
                 groupBoxOptions.Controls.Add(combo);
@@ -314,26 +304,6 @@ namespace CabinDesignTool
 
                 yPosition += rowHeight;
             }
-        }
-
-        private void OnOptionValueChanged(string optionGroupId, int selectedIndex)
-        {
-            UpdateVisualization();
-        }
-
-        private void OnDimensionValueChanged(string dimensionId, double value)
-        {
-            // Обновляем соответствующее значение
-            if (dimensionId == "Высота")
-            {
-                currentHeight = value;
-            }
-            else if (dimensionId == "Ширина")
-            {
-                currentWidth = value;
-            }
-
-            UpdateVisualization();
         }
 
         private void InitializeValues()
@@ -511,167 +481,13 @@ namespace CabinDesignTool
                 //MessageBox.Show($"Отчет успешно сохранен:\n{reportPath}", "Передать", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 // Закрываем форму после успешного сохранения
+                this.DialogResult = DialogResult.OK;
                 this.Close();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Ошибка сохранения отчета: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private void UpdateVisualization()
-        {
-            // Создаем изображение с параметрами кабины
-            Bitmap bitmap = new Bitmap(pictureBoxVisualization.Width, pictureBoxVisualization.Height);
-            using (Graphics g = Graphics.FromImage(bitmap))
-            {
-                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-                // Фон
-                g.Clear(Color.FromArgb(240, 240, 240));
-
-                // Вычисляем размеры для отрисовки с учетом пропорций
-                int padding = 20;
-                int availableWidth = pictureBoxVisualization.Width - 2 * padding;
-                int availableHeight = pictureBoxVisualization.Height - 2 * padding;
-
-                double aspectRatio = currentWidth / currentHeight;
-                int drawHeight = availableHeight;
-                int drawWidth = (int)(drawHeight * aspectRatio);
-
-                if (drawWidth > availableWidth)
-                {
-                    drawWidth = availableWidth;
-                    drawHeight = (int)(drawWidth / aspectRatio);
-                }
-
-                int startX = (pictureBoxVisualization.Width - drawWidth) / 2;
-                int startY = (pictureBoxVisualization.Height - drawHeight) / 2;
-
-                // Тень
-                using (SolidBrush shadowBrush = new SolidBrush(Color.FromArgb(50, 0, 0, 0)))
-                {
-                    g.FillRectangle(shadowBrush, startX + 5, startY + 5, drawWidth, drawHeight);
-                }
-
-                // Основной корпус кабины
-                Color cabinetColor = GetMaterialColor();
-                using (SolidBrush bodyBrush = new SolidBrush(cabinetColor))
-                using (Pen borderPen = new Pen(Color.FromArgb(100, 100, 100), 2))
-                {
-                    g.FillRectangle(bodyBrush, startX, startY, drawWidth, drawHeight);
-                    g.DrawRectangle(borderPen, startX, startY, drawWidth, drawHeight);
-                }
-
-                // Верхние крепления
-                int mountingSize = Math.Max(15, drawWidth / 10);
-                int mountingHeight = Math.Max(20, drawHeight / 20);
-                using (SolidBrush mountingBrush = new SolidBrush(Color.FromArgb(60, 60, 60)))
-                using (Pen mountingPen = new Pen(Color.Black, 1))
-                {
-                    // Левое крепление
-                    Rectangle leftMount = new Rectangle(startX + mountingSize, startY - mountingHeight, mountingSize, mountingHeight + 10);
-                    g.FillRectangle(mountingBrush, leftMount);
-                    g.DrawRectangle(mountingPen, leftMount);
-
-                    // Правое крепление
-                    Rectangle rightMount = new Rectangle(startX + drawWidth - 2 * mountingSize, startY - mountingHeight, mountingSize, mountingHeight + 10);
-                    g.FillRectangle(mountingBrush, rightMount);
-                    g.DrawRectangle(mountingPen, rightMount);
-                }
-
-                // Нижние элементы
-                int bottomElementHeight = Math.Max(15, drawHeight / 15);
-                int bottomElementWidth = drawWidth / 4;
-                using (SolidBrush bottomBrush = new SolidBrush(Color.FromArgb(80, 80, 80)))
-                using (Pen bottomPen = new Pen(Color.Black, 1))
-                {
-                    for (int i = 0; i < 3; i++)
-                    {
-                        int x = startX + i * (drawWidth / 3) + (drawWidth / 6) - (bottomElementWidth / 2);
-                        Rectangle bottomElement = new Rectangle(x, startY + drawHeight - 5, bottomElementWidth, bottomElementHeight);
-                        g.FillRectangle(bottomBrush, bottomElement);
-                        g.DrawRectangle(bottomPen, bottomElement);
-                    }
-                }
-
-                // Секции на двери
-                using (Pen sectionPen = new Pen(Color.FromArgb(150, 150, 150), 1))
-                {
-                    int sectionHeight = drawHeight / 4;
-                    for (int i = 1; i < 4; i++)
-                    {
-                        g.DrawLine(sectionPen, startX + 10, startY + i * sectionHeight, startX + drawWidth - 10, startY + i * sectionHeight);
-                    }
-                }
-
-                // Индикатор стороны открывания
-                using (Pen openingSidePen = new Pen(Color.Red, 2))
-                {
-                    int arrowY = startY + drawHeight / 2;
-
-                    // Получаем ComboBox для стороны открывания
-                    ComboBox openingSideCombo = null;
-                    if (optionControls.ContainsKey("Сторона открывания"))
-                    {
-                        openingSideCombo = optionControls["Сторона открывания"];
-                    }
-
-                    if (openingSideCombo != null && openingSideCombo.SelectedIndex >= 0)
-                    {
-                        string selectedOption = openingSideCombo.SelectedItem?.ToString();
-
-                        if (selectedOption == "Левое")
-                        {
-                            g.DrawLine(openingSidePen, startX + 10, arrowY, startX + 30, arrowY);
-                            g.DrawLine(openingSidePen, startX + 10, arrowY, startX + 20, arrowY - 5);
-                            g.DrawLine(openingSidePen, startX + 10, arrowY, startX + 20, arrowY + 5);
-                        }
-                        else if (selectedOption == "Правое")
-                        {
-                            g.DrawLine(openingSidePen, startX + drawWidth - 10, arrowY, startX + drawWidth - 30, arrowY);
-                            g.DrawLine(openingSidePen, startX + drawWidth - 10, arrowY, startX + drawWidth - 20, arrowY - 5);
-                            g.DrawLine(openingSidePen, startX + drawWidth - 10, arrowY, startX + drawWidth - 20, arrowY + 5);
-                        }
-                    }
-                }
-            }
-
-            // Устанавливаем изображение в PictureBox
-            if (pictureBoxVisualization.Image != null)
-            {
-                pictureBoxVisualization.Image.Dispose();
-            }
-            pictureBoxVisualization.Image = bitmap;
-        }
-
-        private Color GetMaterialColor()
-        {
-            // Получаем ComboBox для материала
-            ComboBox materialCombo = null;
-            if (optionControls.ContainsKey("Материал"))
-            {
-                materialCombo = optionControls["Материал"];
-            }
-
-            if (materialCombo != null && materialCombo.SelectedIndex >= 0)
-            {
-                string selectedMaterial = materialCombo.SelectedItem?.ToString();
-
-                switch (selectedMaterial)
-                {
-                    case "Aisi":
-                        return Color.FromArgb(200, 180, 140);
-                    case "Aisi Bronze":
-                        return Color.FromArgb(200, 180, 140);
-                    case "Цинк":
-                        return Color.FromArgb(220, 230, 240);
-                    default:
-                        return Color.Gray;
-                }
-            }
-
-            return Color.Gray;
         }
 
         private void LoadImage()
